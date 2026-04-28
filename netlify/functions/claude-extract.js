@@ -78,7 +78,7 @@ Output the list now. Nothing else.`
     }
  
     // Hard filter — only keep lines that look like valid cabinet codes
-    const excluded = new Set(['DW605','TFK','TFK_','SFP','FP','BEP','TEP','UP','F409','FLUPANEL','UBMWHT']);
+    const excluded = new Set(['DW605','TFK','TFK_','SFP','FP','BEP','TEP','UP','F409','FLUPANEL']);
     const validCodePattern = /^[A-Z][A-Z0-9]+[A-Z0-9_]*$/;
  
     const lines = text.split('\n')
