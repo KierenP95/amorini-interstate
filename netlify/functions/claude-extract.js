@@ -5,7 +5,7 @@ exports.handler = async (event) => {
  
   try {
     const body = JSON.parse(event.body);
-    const { pdfBase64, mode } = body;
+    const { pdfBase64, startPage, endPage, totalPages } = body;
  
     if (!pdfBase64) {
       return { statusCode: 400, body: JSON.stringify({ error: 'No PDF data received' }) };
@@ -15,12 +15,13 @@ exports.handler = async (event) => {
       return { statusCode: 500, body: JSON.stringify({ error: 'ANTHROPIC_API_KEY environment variable not set' }) };
     }
  
-    // Estimate page count from file size (~3KB per page)
-    const fileSizeKB = (pdfBase64.length * 0.75) / 1024;
-    const estimatedPages = Math.ceil(fileSizeKB / 3);
-    const isLarge = estimatedPages > 30;
+    const isChunked = startPage && endPage && totalPages && totalPages > 50;
  
-    const prompt = `Extract ALL product codes from this Katana label PDF.${isLarge ? ` This PDF has approximately ${estimatedPages} pages — process EVERY SINGLE PAGE without skipping any.` : ''}
+    const pageInstruction = isChunked
+      ? `This PDF has ${totalPages} pages total. Focus ONLY on pages ${startPage} to ${endPage}. Extract codes from those pages only.`
+      : '';
+ 
+    const prompt = `Extract ALL product codes from this Katana label PDF. Process every single page.${pageInstruction ? '\n\n' + pageInstruction : ''}
  
 This PDF may contain cabinets, benchtops and doors/panels mixed together.
  
@@ -58,7 +59,7 @@ No explanations. No headings. Just the list.`;
     const rawText = await response.text();
     let data;
     try { data = JSON.parse(rawText); }
-    catch(e) { return { statusCode: 500, body: JSON.stringify({ error: `Invalid JSON: ${rawText.substring(0, 200)}` }) }; }
+    catch(e) { return { statusCode: 500, body: JSON.stringify({ error: `Invalid JSON: ${rawText.substring(0, 300)}` }) }; }
  
     if (data.error) {
       return { statusCode: 500, body: JSON.stringify({ error: data.error.message || JSON.stringify(data.error) }) };
@@ -67,8 +68,8 @@ No explanations. No headings. Just the list.`;
     let text = data.content?.find(b => b.type === 'text')?.text?.trim();
     if (!text) return { statusCode: 500, body: JSON.stringify({ error: 'No text returned from Claude' }) };
  
-    // Filter output
     const excluded = new Set(['DW605','TFK','TFK_','UP','F409','FLUPANEL']);
+ 
     const lines = text.split('\n')
       .map(l => l.trim())
       .filter(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('*'))
@@ -82,7 +83,7 @@ No explanations. No headings. Just the list.`;
       })
       .filter(Boolean);
  
-    // Smart dedup — detect if list was repeated
+    // Smart dedup
     const seen = {};
     let dupCount = 0;
     lines.forEach(line => { if (seen[line]) dupCount++; seen[line] = true; });
@@ -108,4 +109,4 @@ No explanations. No headings. Just the list.`;
   } catch (err) {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
-};
+}
