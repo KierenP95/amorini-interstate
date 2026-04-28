@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amorini Logistics — Delivery Booking</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #111210;
+  --surface: #1c1d1a;
+  --surface2: #232420;
+  --border: #2d2e2a;
+  --border-hi: #3e3f3a;
+  --text: #e6e4dc;
+  --text-muted: #7a7870;
+  --text-dim: #4a4a44;
+  --gold: #c9922a;
+  --gold-light: #e0aa48;
+  --gold-bg: rgba(201,146,42,0.07);
+  --gold-border: rgba(201,146,42,0.3);
+  --red: #c94040;
+  --green: #4caf74;
+  --green-bg: rgba(76,175,116,0.08);
+  --blue: #5b8fd4;
+  --blue-bg: rgba(91,143,212,0.08);
+  --r: 3px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ─── HEADER ─── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.logo {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.logo em { color: var(--gold); font-style: normal; }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.version-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border: 1px solid var(--border-hi);
+  padding: 3px 8px;
+  border-radius: 2px;
+}
+
+/* ─── WEBHOOK BANNER ─── */
+#webhookBanner {
+  background: rgba(201,146,42,0.1);
+  border-bottom: 1px solid var(--gold-border);
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--gold-light);
+}
+
+#webhookBanner.configured {
+  background: rgba(76,175,116,0.07);
+  border-color: rgba(76,175,116,0.25);
+  color: var(--green);
+}
+
+.banner-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+.configured .banner-dot { background: var(--green); animation: none; }
+
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.banner-link {
+  color: var(--gold-light);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* ─── LAYOUT ─── */
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.span2 { grid-column: 1 / -1; }
+
+@media (max-width: 760px) {
+  .grid { grid-template-columns: 1fr; }
+  .span2 { grid-column: 1; }
+}
+
+/* ─── SECTION LABELS ─── */
+.section-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ─── CARDS ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.card-head {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border-radius: var(--r) var(--r) 0 0;
+}
+
+.step-badge {
+  width: 20px; height: 20px;
+  background: var(--gold);
+  color: #000;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 12px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.card-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.card-body { padding: 18px; }
+
+/* ─── FORM ─── */
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.field-row:last-child { margin-bottom: 0; }
+
+label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
+input[type=text], input[type=date], input[type=email], select, textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 13px;
+  padding: 8px 11px;
+  border-radius: var(--r);
+  outline: none;
+  transition: border-color 0.12s;
+  -webkit-appearance: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--gold);
+}
+input[type=date]::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+  cursor: pointer;
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a7870'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+select option { background: #1c1d1a; }
+
+textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ─── TOGGLE PILLS ─── */
+.toggle-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.toggle-group input[type=radio] { display: none; }
+.toggle-group label {
+  flex: 1;
+  margin: 0;
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.toggle-group label:last-child { border-right: none; }
+.toggle-group input[type=radio]:checked + label {
+  background: var(--gold);
+  color: #000;
+}
+
+/* ─── CARRIER CARDS ─── */
+.carrier-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.carrier-opt input[type=radio] { display: none; }
+.carrier-opt label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 6px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg);
+  transition: border-color 0.12s, background 0.12s;
+  text-align: center;
+}
+.carrier-opt label .carrier-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.carrier-opt label .carrier-contact {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+.carrier-opt input[type=radio]:checked + label {
+  border-color: var(--gold);
+  background: var(--gold-bg);
+}
+.carrier-opt input[type=radio]:checked + label .carrier-name {
+  color: var(--gold-light);
+}
+/* Mainfreight — no email */
+.carrier-opt.no-email label {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.carrier-opt.no-email input[type=radio]:checked + label {
+  border-color: var(--border-hi);
+  background: transparent;
+}
+.carrier-opt.no-email input[type=radio]:checked + label .carrier-name {
+  color: var(--text-muted);
+}
+
+/* ─── CBM AREA ─── */
+#codesInput {
+  font-family: 'Barlow Condensed', monospace;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  min-height: 120px;
+}
+
+.lib-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 7px 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+.lib-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+.lib-dot.on { background: var(--green); }
+
+.upload-zone {
+  border: 1px dashed var(--border-hi);
+  border-radius: var(--r);
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s;
+  margin-bottom: 12px;
+}
+.upload-zone:hover { border-color: var(--gold); }
+.upload-zone input[type=file] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer;
+  width: 100%; height: 100%;
+}
+.upload-zone p {
+  font-size: 11px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.upload-zone strong { color: var(--gold-light); }
+
+/* ─── CBM RESULT ─── */
+.cbm-result {
+  background: var(--gold-bg);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--r);
+  padding: 14px 18px;
+  margin-top: 14px;
+  display: none;
+}
+.cbm-result.show { display: block; }
+
+.cbm-num {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 52px;
+  font-weight: 900;
+  color: var(--gold-light);
+  line-height: 1;
+}
+.cbm-unit {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  margin-top: 2px;
+}
+.cbm-breakdown {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.br-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.br-row:last-child { border-bottom: none; }
+.br-code { font-family: 'Barlow Condensed', sans-serif; color: var(--text); }
+.br-val { color: var(--gold-light); font-weight: 600; }
+.br-miss { color: var(--red); }
+
+/* ─── BUTTONS ─── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800; font-size: 13px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 9px 18px;
+  border: none; border-radius: var(--r);
+  cursor: pointer;
+  transition: opacity 0.12s, transform 0.1s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.98); }
+.btn-gold { background: var(--gold); color: #000; }
+.btn-gold:hover { opacity: 0.85; }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border-hi); }
+.btn-ghost:hover { border-color: var(--gold); color: var(--gold-light); }
+.btn-full { width: 100%; }
+.btn-lg { font-size: 15px; padding: 13px 24px; }
+
+.btn-row { display: flex; gap: 10px; margin-top: 14px; }
+
+/* ─── SEND BUTTON SECTION ─── */
+.send-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+}
+
+.email-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  white-space: pre-wrap;
+  font-family: 'Barlow', sans-serif;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+}
+.email-preview.show { display: block; }
+.email-preview strong { color: var(--text); }
+
+.send-to-line {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  display: none;
+}
+.send-to-line.show { display: block; }
+.send-to-line strong { color: var(--gold-light); }
+
+/* ─── STATUS ─── */
+.status-msg {
+  display: none; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--r);
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 14px;
+}
+.status-msg.show { display: flex; }
+.status-msg.success { background: var(--green-bg); border: 1px solid rgba(76,175,116,0.35); color: var(--green); }
+.status-msg.error { background: rgba(201,64,64,0.07); border: 1px solid rgba(201,64,64,0.3); color: var(--red); }
+.status-msg.sending { background: var(--blue-bg); border: 1px solid rgba(91,143,212,0.3); color: var(--blue); }
+
+/* ─── MAKE GUIDE ─── */
+.guide-toggle {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 16px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--r);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: border-color 0.12s;
+}
+.guide-toggle:hover { border-color: var(--gold); color: var(--gold-light); }
+
+.guide-body {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--r) var(--r);
+  padding: 20px;
+  display: none;
+}
+.guide-body.open { display: block; }
+
+.guide-step {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.guide-step:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+.gs-num {
+  width: 24px; height: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border-hi);
+  color: var(--gold);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.gs-content h4 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.gs-content p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.gs-content code {
+  display: block;
+  margin-top: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 8px 10px;
+  font-family: 'Barlow Condensed', monospace;
+  font-size: 12px;
+  color: var(--gold-light);
+  white-space: pre;
+}
+
+.gs-content .field-list {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gs-content .field-pill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: var(--surface2);
+  border: 1px solid var(--border-hi);
+  color: var(--text-muted);
+  font-family: 'Barlow Condensed', monospace;
+  text-transform: none;
+}
+
+/* ─── WEBHOOK INPUT ─── */
+.webhook-row {
+  display: flex; gap: 10px;
+  padding: 14px 20px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  align-items: flex-end;
+}
+.webhook-row .wh-field { flex: 1; }
+.webhook-row label { color: var(--gold-light); }
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Amorini <em>Logistics</em></div>
+  <div class="header-right">
+    <span class="version-tag">Delivery Booking System</span>
+  </div>
+</header>
+
+<!-- Webhook Banner -->
+<div id="webhookBanner">
+  <div class="banner-dot"></div>
+  <span>Make webhook not configured. <span class="banner-link" onclick="document.getElementById('webhookInput').focus(); document.getElementById('webhookInput').scrollIntoView({behavior:'smooth'})">Paste your webhook URL below</span> to enable email sending.</span>
+</div>
+
+<div class="wrap">
+
+  <!-- WEBHOOK CONFIG ROW -->
+  <div class="card span2" style="margin-bottom:20px;">
+    <div class="webhook-row">
+      <div class="wh-field">
+        <label>⚙ Make Webhook URL</label>
+        <input type="text" id="webhookInput" placeholder="https://hook.eu1.make.com/xxxxxxxxxxxxxxxx" oninput="onWebhookInput(this.value)">
+      </div>
+      <button class="btn btn-ghost" onclick="saveWebhook()">Save</button>
+    </div>
+    <div class="webhook-row" style="border-top: 1px solid var(--border);">
+      <div class="wh-field">
+        <label style="color:var(--blue);">🗺 Google Maps API Key</label>
+        <input type="text" id="mapsApiKey" placeholder="AIzaSy…" oninput="onMapsKeyInput(this.value)">
+      </div>
+      <button class="btn btn-ghost" onclick="saveMapsKey()">Save</button>
+    </div>
+    <div style="padding:10px 20px; font-size:11px; color:var(--text-dim);">
+      Both keys are saved in your browser only. See the setup guides at the bottom of this page.
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ── LEFT COLUMN ── -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+      <!-- STEP 1: LIBRARY -->
+      <div class="card">
+        <div class="card-head">
+          <div class="step-badge">1</div>
+          <span class="card-title">Dimension Library</span>
+        </div>
+        <div class="card-body">
+          <div class="lib-status" id="libStatus">
+            <div class="lib-dot" id="libDot"></div>
+            <span id="libStatusText">No library loaded — upload your cabinet dimensions file</span>
+          </div>
+          <div class="upload-zone">
+            <input type="file" id="libFile" accept=".csv,.xlsx,.xls" onchange="loadLibrary(this)">
+            <p><strong>Click to upload</strong> CSV or Excel file<br>Columns: Code, Length, Width, Height (mm)</p>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px;" onclick="document.getElementById('manualEntry').style.display = document.getElementById('manualEntry').style.display==='none'?'block':'none'">+ Manual entry</button>
+            <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px;" onclick="clearLibrary()">Clear library</button>
+          </div>
+          <div id="manualEntry" style="display:none; margin-top:12px;">
+            <label>Add a code (Code,L,W,H in mm)</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="manualCode" placeholder="e.g. W600,600,560,720">
+              <button class="btn btn-gold" onclick="addManual()" style="padding:8px 14px; font-size:12px;">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: CBM CALC -->
+      <div class="card">
+        <div class="card-head">
+          <div class="step-badge">2</div>
+          <span class="card-title">CBM Calculator</span>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label>Upload job PDF <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);">— AI will extract cabinet codes automatically</span></label>
+            <div class="upload-zone" id="pdfUploadZone">
+              <input type="file" id="pdfFile" accept=".pdf" onchange="extractFromPDF(this)">
+              <p><strong>Click to upload</strong> job sheet PDF<br>Cabinet codes will be extracted automatically</p>
+            </div>
+            <div id="pdfStatus" style="display:none; font-size:11px; padding:7px 11px; border-radius:var(--r); margin-top:8px; align-items:center; gap:8px;"></div>
+          </div>
+          <div class="field">
+            <label>Cabinet codes — one per line, optional qty after space</label>
+            <textarea id="codesInput" placeholder="W600 2&#10;B900&#10;T800 3&#10;OV600"></textarea>
+          </div>
+          <div class="btn-row" style="margin-top:0;">
+            <button class="btn btn-gold btn-full" onclick="calcCBM()">Calculate CBM</button>
+            <button class="btn btn-ghost" onclick="clearCodes()">Clear</button>
+          </div>
+          <div class="cbm-result" id="cbmResult">
+            <div class="cbm-num" id="cbmNum">0.00</div>
+            <div class="cbm-unit">cubic metres</div>
+            <div class="cbm-breakdown" id="cbmBreakdown"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── RIGHT COLUMN ── -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+      <!-- STEP 3: JOB DETAILS -->
+      <div class="card">
+        <div class="card-head">
+          <div class="step-badge">3</div>
+          <span class="card-title">Job Details</span>
+        </div>
+        <div class="card-body">
+          <div class="field-row">
+            <div>
+              <label>Job / Order Reference</label>
+              <input type="text" id="jobRef" placeholder="e.g. SO-2048">
+            </div>
+            <div>
+              <label>Job Name</label>
+              <input type="text" id="customerName" placeholder="e.g. Smith Residence">
+            </div>
+          </div>
+          <div class="field">
+            <label>Delivery Address <span id="autocompleteStatus" style="font-size:10px; color:var(--text-dim); font-weight:400; letter-spacing:0; text-transform:none; margin-left:6px;"></span></label>
+            <input type="text" id="deliveryAddress" placeholder="Start typing an address…" autocomplete="off">
+          </div>
+          <div class="field-row">
+            <div>
+              <label>Site Contact</label>
+              <input type="text" id="siteContact" placeholder="e.g. Jane Smith">
+            </div>
+            <div>
+              <label>Site Number</label>
+              <input type="text" id="siteNumber" placeholder="e.g. 04XX XXX XXX">
+            </div>
+          </div>
+          <div class="field-row">
+            <div>
+              <label>Requested Pick-Up Date</label>
+              <input type="date" id="pickupDate">
+            </div>
+            <div>
+              <label>Requested Delivery Date</label>
+              <input type="date" id="deliveryDate">
+            </div>
+          </div>
+          <div class="field">
+            <label>Cargo Type</label>
+            <div class="toggle-group">
+              <input type="radio" name="cargo" id="c-assembled" value="Assembled" checked>
+              <label for="c-assembled">Assembled</label>
+              <input type="radio" name="cargo" id="c-flatpack" value="Flatpack">
+              <label for="c-flatpack">Flatpack</label>
+              <input type="radio" name="cargo" id="c-mixed" value="Mixed">
+              <label for="c-mixed">Mixed</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>Freight Type</label>
+            <div class="toggle-group">
+              <input type="radio" name="freight" id="f-pantech" value="Pantech" checked>
+              <label for="f-pantech">Pantech</label>
+              <input type="radio" name="freight" id="f-pallet" value="Pallet / Tautliner">
+              <label for="f-pallet">Pallet / Tautliner</label>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Notes</label>
+            <textarea id="notes" placeholder="Access requirements, floor level, time restrictions, special handling..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4: CARRIER -->
+      <div class="card">
+        <div class="card-head">
+          <div class="step-badge">4</div>
+          <span class="card-title">Delivery Team</span>
+        </div>
+        <div class="card-body">
+          <div class="carrier-grid">
+            <div class="carrier-opt">
+              <input type="radio" name="carrier" id="carr-martin" value="Martin — Ability Removals" data-email="PLACEHOLDER_MARTIN@abilityremovalswa.com.au">
+              <label for="carr-martin">
+                <span class="carrier-name">Martin</span>
+                <span class="carrier-contact">Ability Removals</span>
+              </label>
+            </div>
+            <div class="carrier-opt">
+              <input type="radio" name="carrier" id="carr-jackman" value="Sam Jackman — Jackmans Transport" data-email="PLACEHOLDER_SAM@jackmanstransport.com.au">
+              <label for="carr-jackman">
+                <span class="carrier-name">Jackmans</span>
+                <span class="carrier-contact">Sam Jackman</span>
+              </label>
+            </div>
+            <div class="carrier-opt">
+              <input type="radio" name="carrier" id="carr-harrington" value="Andrew — Harringtons Removals" data-email="PLACEHOLDER_ANDREW@harringtonsremovals.com.au">
+              <label for="carr-harrington">
+                <span class="carrier-name">Harringtons</span>
+                <span class="carrier-contact">Andrew</span>
+              </label>
+            </div>
+            <div class="carrier-opt no-email">
+              <input type="radio" name="carrier" id="carr-mainfreight" value="Mainfreight" data-email="">
+              <label for="carr-mainfreight">
+                <span class="carrier-name">Mainfreight</span>
+                <span class="carrier-contact">Manual booking</span>
+              </label>
+            </div>
+          </div>
+          <p style="font-size:11px; color:var(--text-dim); margin-top:10px;">Mainfreight requires manual booking — no email will be sent for that carrier.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── SEND ROW (full width) ── -->
+    <div class="span2">
+      <div class="send-section">
+        <div class="section-label" style="margin-bottom:16px;">Review &amp; Send Booking Request</div>
+        <div class="send-to-line" id="sendToLine"></div>
+        <div class="email-preview" id="emailPreview"></div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button class="btn btn-ghost" onclick="previewEmail()" style="flex:1;">Preview Email</button>
+          <button class="btn btn-gold btn-lg" id="sendBtn" onclick="sendBooking()" style="flex:2;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Send Booking Request
+          </button>
+        </div>
+        <div class="status-msg" id="statusMsg"></div>
+      </div>
+    </div>
+
+    <!-- ── MAKE SETUP GUIDE (full width) ── -->
+    <div class="span2">
+      <button class="guide-toggle" onclick="toggleGuide()">
+        <span>⚙ Make.com Setup Guide — How to wire up the webhook</span>
+        <span id="guideArrow">▼</span>
+      </button>
+      <div class="guide-body" id="guideBody">
+
+        <div class="guide-step">
+          <div class="gs-num">1</div>
+          <div class="gs-content">
+            <h4>Create a new scenario in Make</h4>
+            <p>Log in to Make.com → click <strong>Create a new scenario</strong>. Search for the <strong>Webhooks</strong> app and choose <strong>Custom webhook</strong> as your trigger module.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">2</div>
+          <div class="gs-content">
+            <h4>Add the webhook trigger &amp; copy the URL</h4>
+            <p>Click <strong>Add</strong> to create a new webhook. Give it a name like <em>Amorini Booking Request</em>. Make will generate a unique URL — copy it and paste it into the <strong>Webhook URL field</strong> at the top of this page.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">3</div>
+          <div class="gs-content">
+            <h4>Determine the data structure</h4>
+            <p>Click <strong>Re-determine data structure</strong> in Make, then submit a test booking from this page (any carrier except Mainfreight). Make will map all the fields automatically. You'll see these fields arrive:</p>
+            <div class="field-list">
+              <span class="field-pill">jobRef</span>
+              <span class="field-pill">customerName</span>
+              <span class="field-pill">deliveryAddress</span>
+              <span class="field-pill">pickupDate</span>
+              <span class="field-pill">deliveryDate</span>
+              <span class="field-pill">cbm</span>
+              <span class="field-pill">cargoType</span>
+              <span class="field-pill">freightType</span>
+              <span class="field-pill">carrier</span>
+              <span class="field-pill">carrierEmail</span>
+              <span class="field-pill">notes</span>
+              <span class="field-pill">sentFrom</span>
+              <span class="field-pill">emailBody</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">4</div>
+          <div class="gs-content">
+            <h4>Add a Gmail (or SMTP) module to send the email</h4>
+            <p>After the webhook trigger, add a <strong>Gmail → Send an Email</strong> module (or use SMTP if you prefer). Connect it to <strong>bookings@amorinilogistics.com.au</strong>. Map the fields like this:</p>
+            <code>To:       {{carrierEmail}}
+Subject:  Delivery Booking Request — {{jobRef}} — {{deliveryAddress}}
+From:     bookings@amorinilogistics.com.au
+Body:     {{emailBody}}</code>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">5</div>
+          <div class="gs-content">
+            <h4>Update the carrier email addresses in this file</h4>
+            <p>Open this HTML file in a text editor. Find the three <code>data-email="PLACEHOLDER_..."</code> values on the carrier radio buttons and replace them with the real email addresses for Martin, Sam Jackman, and Andrew. Save the file.</p>
+            <code>data-email="PLACEHOLDER_MARTIN@..."   → real email
+data-email="PLACEHOLDER_SAM@..."      → real email
+data-email="PLACEHOLDER_ANDREW@..."   → real email</code>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">6</div>
+          <div class="gs-content">
+            <h4>(Optional) Add a Google Sheets module to log bookings</h4>
+            <p>After the Gmail module, add a <strong>Google Sheets → Add a Row</strong> module. Map each field to a column in your warehouse booking log sheet. This gives the warehouse team a live view of all upcoming deliveries with CBM and cargo details.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">7</div>
+          <div class="gs-content">
+            <h4>Turn on the scenario &amp; test</h4>
+            <p>Flip the scenario to <strong>ON</strong>. Submit a real test booking from this page. Check that the email arrives at the carrier address and that the row appears in your Google Sheet. You're live.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── GOOGLE CLOUD SETUP GUIDE (full width) ── -->
+    <div class="span2">
+      <button class="guide-toggle" onclick="toggleGoogleGuide()">
+        <span>🗺 Google Cloud Setup Guide — Enable address autocomplete</span>
+        <span id="googleGuideArrow">▼</span>
+      </button>
+      <div class="guide-body" id="googleGuideBody">
+
+        <div class="guide-step">
+          <div class="gs-num">1</div>
+          <div class="gs-content">
+            <h4>Create a Google Cloud project</h4>
+            <p>Go to <strong>console.cloud.google.com</strong> and sign in with your Google account. Click <strong>Select a project → New Project</strong>. Name it something like <em>Amorini Logistics</em> and click Create.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">2</div>
+          <div class="gs-content">
+            <h4>Enable the Places API</h4>
+            <p>In the left menu go to <strong>APIs &amp; Services → Library</strong>. Search for <strong>Places API</strong> and click Enable. Also enable <strong>Maps JavaScript API</strong> while you're there — both are needed.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">3</div>
+          <div class="gs-content">
+            <h4>Create an API key</h4>
+            <p>Go to <strong>APIs &amp; Services → Credentials → Create Credentials → API Key</strong>. Google will generate a key starting with <strong>AIzaSy…</strong> — copy it.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">4</div>
+          <div class="gs-content">
+            <h4>Restrict the key (recommended)</h4>
+            <p>Click <strong>Edit API key</strong>. Under <em>Application restrictions</em>, choose <strong>HTTP referrers</strong> and add the URL where you host this file (e.g. your Netlify domain). Under <em>API restrictions</em>, restrict it to <strong>Maps JavaScript API</strong> and <strong>Places API</strong> only. This stops anyone else from using your key.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">5</div>
+          <div class="gs-content">
+            <h4>Paste the key into this tool</h4>
+            <p>Copy your API key and paste it into the <strong>Google Maps API Key</strong> field at the top of this page, then click Save. The address field will immediately gain autocomplete suggestions as you type.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="gs-num">6</div>
+          <div class="gs-content">
+            <h4>Billing &amp; free tier</h4>
+            <p>Google requires a billing account to be attached, but the <strong>Places Autocomplete API</strong> includes a generous free monthly credit (~$200 USD). At roughly $0.0028 per session, you'd need to make around 70,000 address lookups per month before paying anything. For internal warehouse use, you'll almost certainly stay free.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+</div><!-- /wrap -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+const BOOKING_WEBHOOK = ''; // Set via UI input — saved to localStorage
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let library = {}; // { CODE: { l, w, h } }
+let lastCBM = null;
+let autocomplete = null;
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  // Restore saved webhook
+  const saved = localStorage.getItem('amorini_booking_webhook');
+  if (saved) {
+    document.getElementById('webhookInput').value = saved;
+    onWebhookInput(saved);
+  }
+  // Restore Maps API key and load Places if available
+  const savedKey = localStorage.getItem('amorini_maps_key');
+  if (savedKey) {
+    document.getElementById('mapsApiKey').value = savedKey;
+    loadPlacesAPI(savedKey);
+  } else {
+    document.getElementById('autocompleteStatus').textContent = '(add API key above to enable autocomplete)';
+  }
+  // Restore library
+  const savedLib = localStorage.getItem('amorini_cbm_library');
+  if (savedLib) {
+    try {
+      library = JSON.parse(savedLib);
+      updateLibStatus();
+    } catch(e) {}
+  }
+  // Set default dates (this Friday pickup, following Monday delivery)
+  setDefaultDates();
+});
+
+function setDefaultDates() {
+  const today = new Date();
+  const day = today.getDay();
+  const daysToFriday = (5 - day + 7) % 7 || 7;
+  const friday = new Date(today);
+  friday.setDate(today.getDate() + daysToFriday);
+  const monday = new Date(friday);
+  monday.setDate(friday.getDate() + 3);
+  document.getElementById('pickupDate').value = friday.toISOString().split('T')[0];
+  document.getElementById('deliveryDate').value = monday.toISOString().split('T')[0];
+}
+
+// ── WEBHOOK ──────────────────────────────────────────────────────────────────
+function onWebhookInput(val) {
+  const banner = document.getElementById('webhookBanner');
+  const dot = banner.querySelector('.banner-dot');
+  if (val && val.startsWith('https://hook.')) {
+    banner.className = 'configured';
+    banner.innerHTML = `<div class="banner-dot"></div><span>Make webhook configured — ready to send booking requests.</span>`;
+  } else if (val) {
+    banner.className = '';
+    banner.innerHTML = `<div class="banner-dot"></div><span>Webhook URL looks unusual — make sure it starts with https://hook.make.com or https://hook.eu1.make.com</span>`;
+  } else {
+    banner.className = '';
+    banner.innerHTML = `<div class="banner-dot"></div><span>Make webhook not configured. <span class="banner-link" onclick="document.getElementById('webhookInput').focus()">Paste your webhook URL above</span> to enable email sending.</span>`;
+  }
+}
+
+function saveWebhook() {
+  const val = document.getElementById('webhookInput').value.trim();
+  if (val) {
+    localStorage.setItem('amorini_booking_webhook', val);
+    showStatus('Webhook URL saved to browser.', 'success');
+  }
+}
+
+// ── GOOGLE MAPS / PLACES ──────────────────────────────────────────────────────
+function onMapsKeyInput(val) {
+  // Visual feedback only — don't reload on every keystroke
+}
+
+function saveMapsKey() {
+  const val = document.getElementById('mapsApiKey').value.trim();
+  if (!val) { showStatus('Please paste your Google Maps API key first.', 'error'); return; }
+  localStorage.setItem('amorini_maps_key', val);
+  // Force a clean reload of the Maps library
+  if (window.google) {
+    try { delete window.google; } catch(e) { window.google = undefined; }
+  }
+  loadPlacesAPI(val);
+  showStatus('Maps API key saved — loading autocomplete…', 'success');
+}
+
+function loadPlacesAPI(apiKey) {
+  const statusEl = document.getElementById('autocompleteStatus');
+  statusEl.textContent = 'Loading…';
+  statusEl.style.color = 'var(--text-muted)';
+
+  // Remove any previously injected script so we can reload cleanly
+  const existing = document.getElementById('gmaps-script');
+  if (existing) existing.remove();
+  autocomplete = null;
+
+  // If google.maps is already loaded from a previous key attempt, init directly
+  if (window.google && window.google.maps && window.google.maps.places) {
+    initAutocomplete();
+    return;
+  }
+
+  // Intercept Google's own error handler so we catch RefererNotAllowedMapError etc.
+  window.gm_authFailure = function() {
+    statusEl.textContent = '⚠ Key rejected by Google — check API restrictions';
+    statusEl.style.color = 'var(--red)';
+  };
+
+  const script = document.createElement('script');
+  script.id = 'gmaps-script';
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete&loading=async`;
+  script.async = true;
+
+  script.onerror = () => {
+    statusEl.textContent = '⚠ Could not load Google Maps — check your internet connection';
+    statusEl.style.color = 'var(--red)';
+  };
+
+  document.head.appendChild(script);
+}
+
+window.initAutocomplete = function() {
+  const statusEl = document.getElementById('autocompleteStatus');
+
+  try {
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      throw new Error('Places library not available');
+    }
+
+    const input = document.getElementById('deliveryAddress');
+    autocomplete = new google.maps.places.Autocomplete(input, {
+      types: ['address'],
+      componentRestrictions: { country: 'au' },
+      fields: ['formatted_address']
+    });
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (place && place.formatted_address) {
+        input.value = place.formatted_address;
+        updateEmailPreview();
+      }
+    });
+
+    statusEl.textContent = '✓ Autocomplete active';
+    statusEl.style.color = 'var(--green)';
+    injectAutocompleteStyles();
+
+  } catch(e) {
+    statusEl.textContent = '⚠ Places failed to init — ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  }
+};
+
+function injectAutocompleteStyles() {
+  if (document.getElementById('pac-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'pac-styles';
+  style.textContent = `
+    .pac-container {
+      background: #1c1d1a !important;
+      border: 1px solid #3e3f3a !important;
+      border-top: none !important;
+      border-radius: 0 0 3px 3px !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+      font-family: 'Barlow', sans-serif !important;
+    }
+    .pac-item {
+      background: #1c1d1a !important;
+      color: #7a7870 !important;
+      border-top: 1px solid #2d2e2a !important;
+      padding: 8px 12px !important;
+      font-size: 13px !important;
+      cursor: pointer !important;
+    }
+    .pac-item:hover, .pac-item-selected {
+      background: #232420 !important;
+    }
+    .pac-item-query {
+      color: #e6e4dc !important;
+      font-size: 13px !important;
+    }
+    .pac-matched { color: #e0aa48 !important; font-weight: 600 !important; }
+    .pac-icon { display: none !important; }
+    .pac-logo:after { display: none !important; }
+  `;
+  document.head.appendChild(style);
+}
+
+// ── LIBRARY ───────────────────────────────────────────────────────────────────
+function loadLibrary(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  const reader = new FileReader();
+
+  if (name.endsWith('.csv')) {
+    reader.onload = e => parseCSV(e.target.result);
+    reader.readAsText(file);
+  } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    reader.onload = e => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      processRows(rows.slice(1));
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const rows = lines.slice(1).map(l => l.split(',').map(c => c.trim()));
+  processRows(rows);
+}
+
+function processRows(rows) {
+  let count = 0;
+  rows.forEach(r => {
+    const code = (r[0] || '').toString().trim().toUpperCase();
+    const l = parseFloat(r[1]), w = parseFloat(r[2]), h = parseFloat(r[3]);
+    if (code && !isNaN(l) && !isNaN(w) && !isNaN(h)) {
+      library[code] = { l, w, h };
+      count++;
+    }
+  });
+  localStorage.setItem('amorini_cbm_library', JSON.stringify(library));
+  updateLibStatus();
+  showStatus(`Library loaded — ${count} cabinet codes ready.`, 'success');
+}
+
+function addManual() {
+  const val = document.getElementById('manualCode').value.trim();
+  const parts = val.split(',').map(p => p.trim());
+  if (parts.length < 4) { showStatus('Format: CODE,L,W,H (e.g. W600,600,560,720)', 'error'); return; }
+  const code = parts[0].toUpperCase();
+  const l = parseFloat(parts[1]), w = parseFloat(parts[2]), h = parseFloat(parts[3]);
+  if (isNaN(l) || isNaN(w) || isNaN(h)) { showStatus('Dimensions must be numbers.', 'error'); return; }
+  library[code] = { l, w, h };
+  localStorage.setItem('amorini_cbm_library', JSON.stringify(library));
+  document.getElementById('manualCode').value = '';
+  updateLibStatus();
+  showStatus(`Added ${code}: ${l}×${w}×${h}mm`, 'success');
+}
+
+function clearLibrary() {
+  library = {};
+  localStorage.removeItem('amorini_cbm_library');
+  updateLibStatus();
+}
+
+function updateLibStatus() {
+  const count = Object.keys(library).length;
+  document.getElementById('libDot').className = 'lib-dot' + (count > 0 ? ' on' : '');
+  document.getElementById('libStatusText').textContent = count > 0
+    ? `${count} cabinet codes loaded`
+    : 'No library loaded — upload your cabinet dimensions file';
+}
+
+// ── PDF EXTRACTION ────────────────────────────────────────────────────────────
+async function extractFromPDF(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('pdfStatus');
+  const zone = document.getElementById('pdfUploadZone');
+
+  const setStatus = (msg, color) => {
+    statusEl.style.display = 'flex';
+    statusEl.style.background = color === 'gold' ? 'var(--gold-bg)' : color === 'green' ? 'var(--green-bg)' : 'rgba(201,64,64,0.07)';
+    statusEl.style.border = `1px solid ${color === 'gold' ? 'var(--gold-border)' : color === 'green' ? 'rgba(76,175,116,0.35)' : 'rgba(201,64,64,0.3)'}`;
+    statusEl.style.color = color === 'gold' ? 'var(--gold-light)' : color === 'green' ? 'var(--green)' : 'var(--red)';
+    statusEl.textContent = msg;
+  };
+
+  setStatus('⏳ Reading PDF — extracting cabinet codes…', 'gold');
+  zone.style.borderColor = 'var(--gold)';
+
+  try {
+    // Convert PDF to base64
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const response = await fetch('/.netlify/functions/claude-extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdfBase64: base64 })
+    });
+
+    const rawText = await response.text();
+    console.log('Function response status:', response.status);
+    console.log('Function response body:', rawText.substring(0, 500));
+
+    if (!rawText || rawText.trim() === '') {
+      throw new Error(`Empty response from function (status ${response.status}) — check Netlify function logs`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch(e) {
+      throw new Error(`Invalid JSON from function: ${rawText.substring(0, 200)}`);
+    }
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    const text = data.codes;
+
+    if (!text) throw new Error('No codes found in response');
+
+    // Populate the codes textarea
+    document.getElementById('codesInput').value = text;
+    const lineCount = text.split('\n').filter(l => l.trim()).length;
+    setStatus(`✓ Extracted ${lineCount} cabinet code${lineCount !== 1 ? 's' : ''} from PDF — review below then click Calculate CBM`, 'green');
+    zone.style.borderColor = 'var(--green)';
+
+    // Auto-scroll to the textarea
+    document.getElementById('codesInput').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  } catch (err) {
+    setStatus(`⚠ Extraction failed: ${err.message}`, 'red');
+    zone.style.borderColor = 'var(--red)';
+  }
+
+  // Reset file input so same file can be re-uploaded
+  input.value = '';
+}
+
+// ── CBM ───────────────────────────────────────────────────────────────────────
+function calcCBM() {
+  const raw = document.getElementById('codesInput').value.trim();
+  if (!raw) { showStatus('Paste some cabinet codes first.', 'error'); return; }
+  const lines = raw.split('\n').filter(l => l.trim());
+  let total = 0;
+  const breakdown = [];
+  const missing = [];
+
+  lines.forEach(line => {
+    const parts = line.trim().split(/\s+/);
+    const code = parts[0].toUpperCase();
+    const qty = parts[1] ? parseInt(parts[1]) : 1;
+    if (library[code]) {
+      const { l, w, h } = library[code];
+      const cbm = (l / 1000) * (w / 1000) * (h / 1000) * qty;
+      total += cbm;
+      breakdown.push({ code, qty, cbm });
+    } else {
+      missing.push(code);
+    }
+  });
+
+  lastCBM = total.toFixed(3);
+  document.getElementById('cbmNum').textContent = lastCBM;
+
+  let html = '';
+  breakdown.forEach(({ code, qty, cbm }) => {
+    html += `<div class="br-row"><span class="br-code">${code}${qty > 1 ? ' ×'+qty : ''}</span><span class="br-val">${cbm.toFixed(3)} m³</span></div>`;
+  });
+  missing.forEach(code => {
+    html += `<div class="br-row"><span class="br-code br-miss">${code}</span><span style="font-size:10px;color:var(--red)">Not in library</span></div>`;
+  });
+
+  document.getElementById('cbmBreakdown').innerHTML = html;
+  document.getElementById('cbmResult').className = 'cbm-result show';
+  updateEmailPreview();
+}
+
+function clearCodes() {
+  document.getElementById('codesInput').value = '';
+  document.getElementById('cbmResult').className = 'cbm-result';
+  lastCBM = null;
+}
+
+// ── EMAIL PREVIEW ─────────────────────────────────────────────────────────────
+function buildEmailBody() {
+  const jobRef       = document.getElementById('jobRef').value.trim() || '—';
+  const customer     = document.getElementById('customerName').value.trim() || '—';
+  const siteContact  = document.getElementById('siteContact').value.trim() || '—';
+  const siteNumber   = document.getElementById('siteNumber').value.trim() || '—';
+  const address      = document.getElementById('deliveryAddress').value.trim() || '—';
+  const pickupDate   = document.getElementById('pickupDate').value || '—';
+  const deliveryDate = document.getElementById('deliveryDate').value || '—';
+  const cargo        = document.querySelector('input[name="cargo"]:checked').value;
+  const freight      = document.querySelector('input[name="freight"]:checked').value;
+  const cbm          = lastCBM || '(not yet calculated)';
+  const notes        = document.getElementById('notes').value.trim();
+  const carrier      = document.querySelector('input[name="carrier"]:checked');
+  const carrierName  = carrier ? carrier.value : '—';
+
+  const formatDate = d => {
+    if (d === '—') return '—';
+    const [y, m, day] = d.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${parseInt(day)} ${months[parseInt(m)-1]} ${y}`;
+  };
+
+  return `Hi,
+
+I'd like to request a booking for the following interstate delivery from Amorini Logistics.
+
+─────────────────────────────────────
+JOB DETAILS
+─────────────────────────────────────
+Job Reference:      ${jobRef}
+Job Name:           ${customer}
+Delivery Address:   ${address}
+Site Contact:       ${siteContact}
+Site Number:        ${siteNumber}
+Requested Pick-Up:  ${formatDate(pickupDate)}
+Requested Delivery: ${formatDate(deliveryDate)}
+
+─────────────────────────────────────
+FREIGHT DETAILS
+─────────────────────────────────────
+Total CBM:          ${cbm} m³
+Cargo Type:         ${cargo}
+Freight Type:       ${freight}
+${notes ? `\nNotes: ${notes}\n` : ''}
+─────────────────────────────────────
+
+Please confirm availability and rates at your earliest convenience.
+
+Kind regards,
+Amorini Logistics
+bookings@amorinilogistics.com.au`;
+}
+
+function previewEmail() {
+  const body = buildEmailBody();
+  const prev = document.getElementById('emailPreview');
+  prev.textContent = body;
+  prev.className = 'email-preview show';
+  updateSendToLine();
+}
+
+function updateEmailPreview() {
+  const prev = document.getElementById('emailPreview');
+  if (prev.classList.contains('show')) {
+    prev.textContent = buildEmailBody();
+  }
+  updateSendToLine();
+}
+
+function updateSendToLine() {
+  const carrier = document.querySelector('input[name="carrier"]:checked');
+  const line = document.getElementById('sendToLine');
+  if (carrier && carrier.dataset.email && carrier.dataset.email !== '' && !carrier.dataset.email.startsWith('PLACEHOLDER')) {
+    line.innerHTML = `Sending to: <strong>${carrier.dataset.email}</strong> via Make`;
+    line.className = 'send-to-line show';
+  } else if (carrier && carrier.value === 'Mainfreight') {
+    line.innerHTML = `<span style="color:var(--text-dim)">Mainfreight selected — no email will be sent. Book manually.</span>`;
+    line.className = 'send-to-line show';
+  } else if (carrier && carrier.dataset.email.startsWith('PLACEHOLDER')) {
+    line.innerHTML = `<span style="color:var(--gold)">⚠ Carrier email is still a placeholder — update the HTML file with the real address.</span>`;
+    line.className = 'send-to-line show';
+  } else {
+    line.className = 'send-to-line';
+  }
+}
+
+// Listen for carrier / field changes to keep preview live
+document.addEventListener('change', e => {
+  if (e.target.name === 'carrier' || e.target.name === 'cargo' || e.target.name === 'freight') {
+    updateEmailPreview();
+  }
+});
+document.addEventListener('input', e => {
+  const ids = ['jobRef','customerName','deliveryAddress','siteContact','siteNumber','pickupDate','deliveryDate','notes'];
+  if (ids.includes(e.target.id)) updateEmailPreview();
+});
+
+// ── SEND ──────────────────────────────────────────────────────────────────────
+async function sendBooking() {
+  const webhookURL = document.getElementById('webhookInput').value.trim()
+                     || localStorage.getItem('amorini_booking_webhook') || '';
+
+  // Validation
+  const jobRef    = document.getElementById('jobRef').value.trim();
+  const address   = document.getElementById('deliveryAddress').value.trim();
+  const pickup    = document.getElementById('pickupDate').value;
+  const delivery  = document.getElementById('deliveryDate').value;
+  const carrier   = document.querySelector('input[name="carrier"]:checked');
+
+  if (!jobRef)    { showStatus('Please enter a job / order reference.', 'error'); return; }
+  if (!address)   { showStatus('Please enter a delivery address.', 'error'); return; }
+  if (!pickup)    { showStatus('Please select a pick-up date.', 'error'); return; }
+  if (!delivery)  { showStatus('Please select a delivery date.', 'error'); return; }
+  if (!carrier)   { showStatus('Please select a delivery team.', 'error'); return; }
+  if (!lastCBM)   { showStatus('Please calculate CBM before sending.', 'error'); return; }
+
+  if (carrier.value === 'Mainfreight') {
+    showStatus('Mainfreight requires manual booking — no email sent.', 'error');
+    return;
+  }
+
+  if (!webhookURL) {
+    showStatus('No Make webhook URL configured. Paste your webhook URL at the top of the page.', 'error');
+    return;
+  }
+
+  const payload = {
+    jobRef,
+    customerName:    document.getElementById('customerName').value.trim(),
+    siteContact:     document.getElementById('siteContact').value.trim(),
+    siteNumber:      document.getElementById('siteNumber').value.trim(),
+    deliveryAddress: address,
+    pickupDate:      pickup,
+    deliveryDate:    delivery,
+    cbm:             lastCBM,
+    cargoType:       document.querySelector('input[name="cargo"]:checked').value,
+    freightType:     document.querySelector('input[name="freight"]:checked').value,
+    carrier:         carrier.value,
+    carrierEmail:    carrier.dataset.email,
+    notes:           document.getElementById('notes').value.trim(),
+    sentFrom:        'bookings@amorinilogistics.com.au',
+    emailBody:       buildEmailBody(),
+    submittedAt:     new Date().toISOString()
+  };
+
+  showStatus('Sending booking request…', 'sending');
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(webhookURL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok || res.status === 200) {
+      showStatus(`✓ Booking request sent to ${carrier.value}. Make will dispatch the email from bookings@amorinilogistics.com.au.`, 'success');
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (err) {
+    showStatus(`Failed to reach Make webhook: ${err.message}. Check the URL and that your scenario is turned ON.`, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── GUIDE ─────────────────────────────────────────────────────────────────────
+function toggleGuide() {
+  const body = document.getElementById('guideBody');
+  const arrow = document.getElementById('guideArrow');
+  const open = body.classList.toggle('open');
+  arrow.textContent = open ? '▲' : '▼';
+}
+
+function toggleGoogleGuide() {
+  const body = document.getElementById('googleGuideBody');
+  const arrow = document.getElementById('googleGuideArrow');
+  const open = body.classList.toggle('open');
+  arrow.textContent = open ? '▲' : '▼';
+}
+
+// ── STATUS HELPER ─────────────────────────────────────────────────────────────
+function showStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = `status-msg show ${type}`;
+  if (type === 'success') {
+    setTimeout(() => { el.className = 'status-msg'; }, 5000);
+  }
+}
+</script>
+</body>
+</html>
