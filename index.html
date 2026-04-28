@@ -1565,7 +1565,9 @@ async function extractFromPDF(input) {
 
       // Process each chunk
       let chunkCodes = {};
+      console.log(`Processing ${chunks.length} chunk(s) for ${file.name}`);
       for (let i = 0; i < chunks.length; i++) {
+        console.log(`Chunk ${i+1}/${chunks.length} — base64 length: ${chunks[i].length}`);
         if (chunks.length > 1) {
           fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">chunk ${i+1}/${chunks.length}…</span>`;
         }
