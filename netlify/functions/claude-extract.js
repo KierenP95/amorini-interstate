@@ -5,7 +5,7 @@ exports.handler = async (event) => {
  
   try {
     const body = JSON.parse(event.body);
-    const { pdfBase64 } = body;
+    const { pdfBase64, mode } = body;
  
     if (!pdfBase64) {
       return { statusCode: 400, body: JSON.stringify({ error: 'No PDF data received' }) };
@@ -14,6 +14,45 @@ exports.handler = async (event) => {
     if (!process.env.ANTHROPIC_API_KEY) {
       return { statusCode: 500, body: JSON.stringify({ error: 'ANTHROPIC_API_KEY environment variable not set' }) };
     }
+ 
+    const isBenchtop = mode === 'benchtop';
+ 
+    const cabinetPrompt = `Extract cabinet codes from this PDF. Output ONLY a plain list — no words, no sentences, no headings, no explanations, no asterisks, no dashes as words.
+ 
+This PDF is either:
+A) A Katana label sheet — one label per page, code at bottom with prefix like PMW-, OLOA-, PJMW-. Strip prefix, keep code. Count total pages per code.
+B) A joinery plan — read PLAN VIEW pages only (header says "Plan view:"), ignore Elevation pages.
+ 
+Each output line must be: CODE QTY
+Example output:
+SB100 1
+B45D2PT 3
+W35S 2
+W80S 1
+ 
+EXCLUDE (do not list): DW605, TFK, TFK_, SFP, FP, BEP, TEP, UP, F409, FLUPANEL, and anything with PANEL in the name.
+ 
+IMPORTANT — these ARE valid cabinet codes and must be included if present: UBMWHT, UBMWH, UBO60, UBO90.
+ 
+Output the list now. Nothing else.`;
+ 
+    const benchtopPrompt = `Extract benchtop codes from this Katana label PDF. Output ONLY a plain list — no words, no sentences, no headings, no explanations.
+ 
+Each page has a benchtop code and either:
+- A length in metres (e.g. 2.42 m) for made-to-measure benchtops (codes starting with BXP)
+- A qty in pcs (e.g. 2 pcs) for slab benchtops
+ 
+For each page output one line: CODE VALUE
+- Made-to-measure (has metres on label): CODE LENGTH_IN_METRES  e.g. BXPMIR-WARMGREY60 2.42
+- Slab (has pcs on label): CODE QTY  e.g. ALPINE-3050900 2
+ 
+Rules:
+- Keep the full code including any prefix like BXPMIR-, BXPDKT-, BXPLAM-, BXPCEN-, DEK-, A-
+- Do NOT strip prefixes from benchtop codes
+- Each page = one line in the output
+- No explanations, no headings, just the list
+ 
+Output the list now. Nothing else.`;
  
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -35,24 +74,7 @@ exports.handler = async (event) => {
               },
               {
                 type: 'text',
-                text: `Extract cabinet codes from this PDF. Output ONLY a plain list — no words, no sentences, no headings, no explanations, no asterisks, no dashes as words.
- 
-This PDF is either:
-A) A Katana label sheet — one label per page, code at bottom with prefix like PMW-, OLOA-, PJMW-. Strip prefix, keep code. Count total pages per code.
-B) A joinery plan — read PLAN VIEW pages only (header says "Plan view:"), ignore Elevation pages.
- 
-Each output line must be: CODE QTY
-Example output:
-SB100 1
-B45D2PT 3
-W35S 2
-W80S 1
- 
-EXCLUDE (do not list): DW605, TFK, TFK_, SFP, FP, BEP, TEP, UP, F409, FLUPANEL, and anything with PANEL in the name.
- 
-IMPORTANT — these ARE valid cabinet codes and must be included if present: UBMWHT, UBMWH, UBO60, UBO90.
- 
-Output the list now. Nothing else.`
+                text: isBenchtop ? benchtopPrompt : cabinetPrompt
               }
             ]
           }
@@ -79,72 +101,97 @@ Output the list now. Nothing else.`
       return { statusCode: 500, body: JSON.stringify({ error: 'No text returned from Claude' }) };
     }
  
-    // Return raw Claude output for debugging
     const rawClaude = text;
  
-    // Hard filter — only keep lines that look like valid cabinet codes
-    const excluded = new Set(['DW605','TFK','TFK_','SFP','FP','BEP','TEP','UP','F409','FLUPANEL']);
-    const validCodePattern = /^[A-Z][A-Z0-9]+[A-Z0-9_]*$/;
+    if (isBenchtop) {
+      // Benchtop mode — keep codes with numeric values, strip junk lines
+      const validBenchtopPattern = /^[A-Z][A-Z0-9\-]+[A-Z0-9]$/;
+      const lines = text.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0)
+        .filter(l => !l.startsWith('#'))
+        .filter(l => !l.startsWith('*'))
+        .map(l => {
+          const parts = l.split(/\s+/);
+          const code = parts[0].toUpperCase();
+          const val = parseFloat(parts[1]);
+          if (!code || isNaN(val)) return null;
+          return `${code} ${val}`;
+        })
+        .filter(Boolean);
  
-    const lines = text.split('\n')
-      .map(l => l.trim())
-      .filter(l => l.length > 0)
-      .filter(l => !l.startsWith('#'))
-      .filter(l => !l.startsWith('*'))
-      .map(l => {
-        // Strip finish prefixes like PMW-, OLOA-, PJMW- etc.
-        return l.replace(/^[A-Z]{2,6}-/, '');
-      })
-      .filter(l => {
-        const parts = l.trim().split(/\s+/);
-        const code = parts[0].toUpperCase();
-        if (!validCodePattern.test(code)) return false;
-        if (excluded.has(code)) return false;
-        if (code.includes('PANEL')) return false;
-        if (code.length < 2) return false;
+      // Deduplicate — keep first occurrence
+      const seen = {};
+      const deduped = lines.filter(line => {
+        const code = line.split(' ')[0];
+        if (seen[code]) return false;
+        seen[code] = true;
         return true;
-      })
-      .map(l => {
-        const parts = l.trim().split(/\s+/);
-        const code = parts[0].toUpperCase();
-        const qty = parts[1] && /^\d+$/.test(parts[1]) ? parseInt(parts[1]) : 1;
-        return `${code} ${qty}`;
       });
  
-    // Detect if Claude has repeated the entire list (common hallucination)
-    // Strategy: count how many lines are exact duplicates
-    // If more than half the lines are duplicates, the list was repeated — deduplicate by keeping first occurrence
-    // Otherwise sum quantities (genuine multiple cabinets of same code)
-    const seen = {};
-    let duplicateCount = 0;
-    lines.forEach(line => {
-      if (seen[line]) duplicateCount++;
-      seen[line] = true;
-    });
-    const listWasRepeated = duplicateCount > lines.length * 0.3;
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes: deduped.join('\n'), debug: rawClaude })
+      };
  
-    const codeMap = {};
-    lines.forEach(line => {
-      const [code, qty] = line.split(' ');
-      const q = parseInt(qty);
-      if (listWasRepeated) {
-        // Keep first occurrence only
-        if (!codeMap[code]) codeMap[code] = q;
-      } else {
-        // Sum quantities (genuine duplicates e.g. 3 labels of same cabinet)
-        codeMap[code] = (codeMap[code] || 0) + q;
-      }
-    });
+    } else {
+      // Cabinet mode — existing logic
+      const excluded = new Set(['DW605','TFK','TFK_','SFP','FP','BEP','TEP','UP','F409','FLUPANEL']);
+      const validCodePattern = /^[A-Z][A-Z0-9]+[A-Z0-9_]*$/;
  
-    const finalText = Object.entries(codeMap)
-      .map(([code, qty]) => `${code} ${qty}`)
-      .join('\n');
+      const lines = text.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0)
+        .filter(l => !l.startsWith('#'))
+        .filter(l => !l.startsWith('*'))
+        .map(l => l.replace(/^[A-Z]{2,6}-/, ''))
+        .filter(l => {
+          const parts = l.trim().split(/\s+/);
+          const code = parts[0].toUpperCase();
+          if (!validCodePattern.test(code)) return false;
+          if (excluded.has(code)) return false;
+          if (code.includes('PANEL')) return false;
+          if (code.length < 2) return false;
+          return true;
+        })
+        .map(l => {
+          const parts = l.trim().split(/\s+/);
+          const code = parts[0].toUpperCase();
+          const qty = parts[1] && /^\d+$/.test(parts[1]) ? parseInt(parts[1]) : 1;
+          return `${code} ${qty}`;
+        });
  
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codes: finalText, debug: rawClaude })
-    };
+      // Smart dedup
+      const seen = {};
+      let duplicateCount = 0;
+      lines.forEach(line => {
+        if (seen[line]) duplicateCount++;
+        seen[line] = true;
+      });
+      const listWasRepeated = duplicateCount > lines.length * 0.3;
+ 
+      const codeMap = {};
+      lines.forEach(line => {
+        const [code, qty] = line.split(' ');
+        const q = parseInt(qty);
+        if (listWasRepeated) {
+          if (!codeMap[code]) codeMap[code] = q;
+        } else {
+          codeMap[code] = (codeMap[code] || 0) + q;
+        }
+      });
+ 
+      const finalText = Object.entries(codeMap)
+        .map(([code, qty]) => `${code} ${qty}`)
+        .join('\n');
+ 
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes: finalText, debug: rawClaude })
+      };
+    }
  
   } catch (err) {
     return {
