@@ -1488,6 +1488,8 @@ function adjustQty(btn, delta) {
   const input = btn.parentElement.querySelector('.qty-num');
   const newVal = Math.max(1, parseInt(input.value) + delta);
   input.value = newVal;
+  // Auto-recalculate if CBM result is already showing
+  if (document.getElementById('cbmResult').classList.contains('show')) calcCBM();
 }
 
 function addCodeRow() {
