@@ -48,7 +48,9 @@ B45D2PT 3
 W35S 2
 W80S 1
  
-EXCLUDE (do not list): DW605, TFK, TFK_, SFP, FP, BEP, TEP, UP, F409, FLUPANEL, UBMWHT, and anything with PANEL in the name.
+EXCLUDE (do not list): DW605, TFK, TFK_, SFP, FP, BEP, TEP, UP, F409, FLUPANEL, and anything with PANEL in the name.
+ 
+IMPORTANT — these ARE valid cabinet codes and must be included if present: UBMWHT, UBMWH, UBO60, UBO90.
  
 Output the list now. Nothing else.`
               }
