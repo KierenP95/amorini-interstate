@@ -1526,16 +1526,23 @@ async function extractFromPDF(input) {
       const CHUNK_SIZE = 90;
       let chunks = [];
 
+      // Safe base64 conversion that handles large arrays
+      const toBase64 = (bytes) => {
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary);
+      };
+
       try {
         const pdfDoc = await PDFLib.PDFDocument.load(uint8Array);
         const totalPages = pdfDoc.getPageCount();
 
         if (totalPages <= CHUNK_SIZE) {
-          // Small enough — send as one chunk
-          const base64 = btoa(String.fromCharCode(...uint8Array));
-          chunks = [base64];
+          chunks = [toBase64(uint8Array)];
         } else {
-          // Split into chunks
           fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">${totalPages} pages — splitting into chunks…</span>`;
           for (let start = 0; start < totalPages; start += CHUNK_SIZE) {
             const end = Math.min(start + CHUNK_SIZE, totalPages);
@@ -1544,14 +1551,11 @@ async function extractFromPDF(input) {
             const copiedPages = await subDoc.copyPagesFrom(pdfDoc, indices);
             copiedPages.forEach(p => subDoc.addPage(p));
             const subBytes = await subDoc.save();
-            const base64 = btoa(String.fromCharCode(...subBytes));
-            chunks.push(base64);
+            chunks.push(toBase64(subBytes));
           }
         }
       } catch(splitErr) {
-        // Fallback — send whole file if pdf-lib fails
-        const base64 = btoa(String.fromCharCode(...uint8Array));
-        chunks = [base64];
+        chunks = [toBase64(uint8Array)];
       }
 
       // Process each chunk
