@@ -34,20 +34,38 @@ exports.handler = async (event) => {
             },
             {
               type: 'text',
-              text: `Extract all cabinet codes and their quantities from this job sheet or order document.
+              text: `You are reading an Amorini joinery plan from Bunnings Trade / Winner software. Extract only the cabinetry unit codes from the plan and elevation drawings.
+ 
+Cabinet codes follow these patterns:
+- Base units: B30, B35, B40, B45, B50, B60, B80, B90, B100, B120, BRR45, BRR50, SB60, SB80 etc.
+- Wall/overhead units: W30S, W40S, W45S, W50S, W60S, W80S, W90S, W100S, W1005S, W1205S etc.
+- Tall/pantry units: P80Z, PRR45Z, PT60, EPT40 etc.
+- Drawer units: B45D2P, B453DP, UBO90 etc.
+- Specialised: DW605 (dishwasher cabinet), TFK (tall filler kit) etc.
+ 
+DO NOT include these — they are not cabinet boxes:
+- SFP (scribe filler panel)
+- FP (filler panel)
+- BEP (bench end panel)
+- TEP (tall end panel)
+- UP (underpanel)
+- F409 (fascia)
+- TFK (tall filler kit)
+- DW605 (dishwasher cavity — not a cabinet)
+- Any item described as a panel, fascia, filler, or appliance cavity
+ 
+Count each occurrence of a code across ALL plan and elevation drawings in the document, but count each UNIQUE cabinet only ONCE — if the same cabinet appears in both a plan view and an elevation view, count it as 1, not 2.
  
 Return ONLY a plain text list, one item per line, in this exact format:
 CODE QTY
  
-For example:
-W600 2
-B900 1
-T800 3
+Example:
+W30S 2
+W100S 1
+B45D2P 1
+PRR45Z 1
  
-Rules:
-- If no quantity is shown, assume 1
-- Include only cabinet/product codes — not page numbers, dates, or other numbers
-- Do not include any explanation, headings, or extra text — just the code and quantity list`
+No explanations, no headings, no extra text — just the list.`
             }
           ]
         }]
