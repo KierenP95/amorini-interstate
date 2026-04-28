@@ -1426,6 +1426,7 @@ async function extractFromPDF(input) {
       throw new Error(data.error);
     }
 
+    console.log('RAW CLAUDE OUTPUT:', data.debug);
     const text = data.codes;
 
     if (!text) throw new Error('No codes found in response');
@@ -1761,3 +1762,4 @@ function showStatus(msg, type) {
 </script>
 </body>
 </html>
+
