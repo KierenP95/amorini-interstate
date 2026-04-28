@@ -1156,7 +1156,7 @@ data-email="PLACEHOLDER_ANDREW@..."   → real email</code>
 </div><!-- /wrap -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────────────────
 const BOOKING_WEBHOOK = ''; // Set via UI input — saved to localStorage
@@ -1538,7 +1538,9 @@ async function extractFromPDF(input) {
 
       try {
         if (typeof PDFLib === 'undefined') throw new Error('pdf-lib not loaded');
-        const pdfDoc = await PDFLib.PDFDocument.load(uint8Array);
+        const PDFDocument = PDFLib.PDFDocument || window.PDFDocument;
+        if (!PDFDocument) throw new Error('PDFDocument not found in pdf-lib');
+        const pdfDoc = await PDFDocument.load(uint8Array);
         const totalPages = pdfDoc.getPageCount();
 
         if (totalPages <= CHUNK_SIZE) {
@@ -1547,7 +1549,7 @@ async function extractFromPDF(input) {
           fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">${totalPages} pages — splitting into chunks…</span>`;
           for (let start = 0; start < totalPages; start += CHUNK_SIZE) {
             const end = Math.min(start + CHUNK_SIZE, totalPages);
-            const subDoc = await PDFLib.PDFDocument.create();
+            const subDoc = await PDFDocument.create();
             const indices = Array.from({length: end - start}, (_, i) => start + i);
             const copiedPages = await subDoc.copyPagesFrom(pdfDoc, indices);
             copiedPages.forEach(p => subDoc.addPage(p));
