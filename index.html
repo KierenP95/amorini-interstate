@@ -828,12 +828,28 @@ textarea {
             <div class="cbm-breakdown" id="cbmBreakdown"></div>
           </div>
 
-          <!-- Benchtop Qty -->
-          <div class="field" style="margin-top:16px;">
-            <label>Benchtop quantity <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);">— coming soon, data pending</span></label>
-            <div style="display:flex; gap:10px; align-items:center;">
-              <input type="number" id="benchtopQty" min="0" value="0" style="width:100px;" disabled>
-              <span style="font-size:11px; color:var(--text-dim);">CBM calculation will be added once benchtop dimensions are loaded</span>
+          <!-- Benchtop Section -->
+          <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+              <label style="margin:0; color:var(--gold-light);">Benchtops</label>
+              <button class="btn btn-ghost" onclick="toggleBenchtops()" id="benchtopToggle" style="font-size:10px;padding:4px 10px;">+ Add benchtops</button>
+            </div>
+            <div id="benchtopSection" style="display:none;">
+              <div class="upload-zone" id="benchtopUploadZone" style="margin-bottom:10px;">
+                <input type="file" id="benchtopFile" accept=".pdf" multiple onchange="extractBenchtopsFromPDF(this)">
+                <p><strong>Click to upload</strong> benchtop label PDF(s)<br>Codes and lengths will be extracted automatically</p>
+              </div>
+              <div id="benchtopStatus" style="display:none; font-size:11px; padding:7px 11px; border-radius:var(--r); margin-bottom:10px; align-items:center; gap:8px;"></div>
+              <div id="benchtopQtyEditor" style="display:none; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                  <label style="margin:0; font-size:10px;">Review benchtop codes &amp; lengths</label>
+                  <button class="btn btn-ghost" onclick="addBenchtopRow()" style="font-size:10px;padding:4px 10px;">+ Add manually</button>
+                </div>
+                <div id="benchtopRows"></div>
+              </div>
+            </div>
+            <div id="benchtopCBMLine" style="display:none; font-size:12px; color:var(--text-muted); margin-top:6px;">
+              Benchtop CBM: <span id="benchtopCBMVal" style="color:var(--gold-light); font-weight:700;">0.000</span> m³
             </div>
           </div>
 
@@ -1340,7 +1356,8 @@ function loadLibrary(input) {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      processRows(rows.slice(1));
+      const headers = rows[0].map(h => h.toString().trim().toLowerCase());
+      processRows(rows.slice(1), headers);
     };
     reader.readAsArrayBuffer(file);
   }
@@ -1348,23 +1365,60 @@ function loadLibrary(input) {
 
 function parseCSV(text) {
   const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
   const rows = lines.slice(1).map(l => l.split(',').map(c => c.trim()));
-  processRows(rows);
+  processRows(rows, headers);
 }
 
-function processRows(rows) {
+function processRows(rows, headers) {
   let count = 0;
+  let skipped = 0;
+
+  // Detect format by headers
+  // Cabinet format: Code, Width, Height, Depth
+  // Benchtop format: Code, Category, Type, Length_mm, Depth_mm, Thickness_mm
+  const isBenchtop = headers && (
+    headers.includes('type') || 
+    headers.includes('length_mm') || 
+    headers.includes('thickness_mm')
+  );
+
   rows.forEach(r => {
     const code = (r[0] || '').toString().trim().toUpperCase();
-    const l = parseFloat(r[1]), w = parseFloat(r[2]), h = parseFloat(r[3]);
-    if (code && !isNaN(l) && !isNaN(w) && !isNaN(h)) {
-      library[code] = { l, w, h };
-      count++;
+    if (!code) return;
+
+    if (isBenchtop) {
+      // Benchtop format: Code, Category, Type, Length_mm, Depth_mm, Thickness_mm
+      const type = (r[2] || '').toString().trim().toUpperCase(); // SLAB or M2M
+      const length = r[3] === 'M2M' ? 'M2M' : parseFloat(r[3]);
+      const depth = parseFloat(r[4]);
+      const thickness = parseFloat(r[5]) || 20;
+
+      if (code && !isNaN(depth) && !isNaN(thickness)) {
+        if (type === 'M2M' || r[3] === 'M2M') {
+          // M2M — length comes from label, store depth and thickness
+          library[code] = { type: 'benchtop_m2m', depth, thickness };
+        } else if (!isNaN(length)) {
+          // Slab — full dimensions known, store as l×d×t (in mm)
+          library[code] = { type: 'benchtop_slab', l: length, w: depth, h: thickness };
+        }
+        count++;
+      } else {
+        skipped++;
+      }
+    } else {
+      // Cabinet format: Code, Width, Height, Depth
+      const l = parseFloat(r[1]), w = parseFloat(r[2]), h = parseFloat(r[3]);
+      if (code && !isNaN(l) && !isNaN(w) && !isNaN(h)) {
+        library[code] = { l, w, h };
+        count++;
+      }
     }
   });
+
   localStorage.setItem('amorini_cbm_library', JSON.stringify(library));
   updateLibStatus();
-  showStatus(`Library loaded — ${count} cabinet codes ready.`, 'success');
+  showStatus(`Library loaded — ${count} codes added${skipped > 0 ? `, ${skipped} skipped` : ''}.`, 'success');
 }
 
 function addManual() {
@@ -1388,11 +1442,19 @@ function clearLibrary() {
 }
 
 function updateLibStatus() {
-  const count = Object.keys(library).length;
-  document.getElementById('libDot').className = 'lib-dot' + (count > 0 ? ' on' : '');
-  document.getElementById('libStatusText').textContent = count > 0
-    ? `${count} cabinet codes loaded`
-    : 'No library loaded — upload your cabinet dimensions file';
+  const codes = Object.keys(library);
+  const cabinetCount = codes.filter(k => !library[k].type || library[k].type === 'cabinet').length;
+  const benchtopCount = codes.filter(k => library[k].type && library[k].type.startsWith('benchtop')).length;
+  const total = codes.length;
+  document.getElementById('libDot').className = 'lib-dot' + (total > 0 ? ' on' : '');
+  if (total === 0) {
+    document.getElementById('libStatusText').textContent = 'No library loaded — upload your cabinet dimensions file';
+  } else {
+    const parts = [];
+    if (cabinetCount > 0) parts.push(`${cabinetCount} cabinet codes`);
+    if (benchtopCount > 0) parts.push(`${benchtopCount} benchtop codes`);
+    document.getElementById('libStatusText').textContent = parts.join(', ') + ' loaded';
+  }
 }
 
 // ── PDF EXTRACTION ────────────────────────────────────────────────────────────
@@ -1581,31 +1643,47 @@ function calcCBM() {
   const items = getCodesFromEditor();
   if (!items.length) { showStatus('Add some cabinet codes first.', 'error'); return; }
 
-  let total = 0;
+  let cabinetTotal = 0;
   const breakdown = [];
   const missing = [];
 
   items.forEach(({ code, qty }) => {
     if (library[code]) {
-      const { l, w, h } = library[code];
-      const cbm = (l / 1000) * (w / 1000) * (h / 1000) * qty;
-      total += cbm;
+      const entry = library[code];
+      let cbm = 0;
+      if (entry.type === 'benchtop_slab') {
+        cbm = (entry.l / 1000) * (entry.w / 1000) * (entry.h / 1000) * qty;
+      } else if (!entry.type) {
+        // Standard cabinet
+        cbm = (entry.l / 1000) * (entry.w / 1000) * (entry.h / 1000) * qty;
+      }
+      cabinetTotal += cbm;
       breakdown.push({ code, qty, cbm });
     } else {
       missing.push(code);
     }
   });
 
+  // Add benchtop CBM if calculated
+  const benchtopCBM = calcBenchtopCBM();
+  const combinedTotal = cabinetTotal + benchtopCBM;
+
   const totalCabinets = items.reduce((sum, { qty }) => sum + qty, 0);
-  lastCBM = total.toFixed(3);
+  lastCBM = combinedTotal.toFixed(3);
   lastCabinetCount = totalCabinets;
   document.getElementById('cbmNum').textContent = lastCBM;
-  document.getElementById('cbmCabinetCount').textContent = `${totalCabinets} cabinet${totalCabinets !== 1 ? 's' : ''} total`;
+
+  let countText = `${totalCabinets} cabinet${totalCabinets !== 1 ? 's' : ''}`;
+  if (benchtopCBM > 0) countText += ` + benchtops (${benchtopCBM.toFixed(3)} m³)`;
+  document.getElementById('cbmCabinetCount').textContent = countText + ' total';
 
   let html = '';
   breakdown.forEach(({ code, qty, cbm }) => {
     html += `<div class="br-row"><span class="br-code">${code}${qty > 1 ? ' ×'+qty : ''}</span><span class="br-val">${cbm.toFixed(3)} m³</span></div>`;
   });
+  if (benchtopCBM > 0) {
+    html += `<div class="br-row" style="border-top:1px solid var(--border); margin-top:4px; padding-top:4px;"><span class="br-code" style="color:var(--gold)">Benchtops</span><span class="br-val">${benchtopCBM.toFixed(3)} m³</span></div>`;
+  }
   missing.forEach(code => {
     html += `<div class="br-row"><span class="br-code br-miss">${code}</span><span style="font-size:10px;color:var(--red)">Not in library</span></div>`;
   });
@@ -1613,6 +1691,152 @@ function calcCBM() {
   document.getElementById('cbmBreakdown').innerHTML = html;
   document.getElementById('cbmResult').className = 'cbm-result show';
   updateEmailPreview();
+}
+
+// ── BENCHTOP CBM ──────────────────────────────────────────────────────────────
+function calcBenchtopCBM() {
+  const rows = document.getElementById('benchtopRows');
+  if (!rows) return 0;
+  let total = 0;
+  rows.querySelectorAll('.qty-row').forEach(row => {
+    const code = row.dataset.code;
+    const entry = library[code];
+    if (!entry) return;
+    const qtyOrLength = parseFloat(row.querySelector('.qty-num').value) || 0;
+    if (entry.type === 'benchtop_slab') {
+      total += (entry.l / 1000) * (entry.w / 1000) * (entry.h / 1000) * qtyOrLength;
+    } else if (entry.type === 'benchtop_m2m') {
+      // qtyOrLength is length in metres from label
+      total += qtyOrLength * (entry.depth / 1000) * (entry.thickness / 1000);
+    }
+  });
+  return total;
+}
+
+function toggleBenchtops() {
+  const section = document.getElementById('benchtopSection');
+  const btn = document.getElementById('benchtopToggle');
+  const visible = section.style.display !== 'none';
+  section.style.display = visible ? 'none' : 'block';
+  btn.textContent = visible ? '+ Add benchtops' : '− Hide benchtops';
+}
+
+async function extractBenchtopsFromPDF(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  const statusEl = document.getElementById('benchtopStatus');
+  const zone = document.getElementById('benchtopUploadZone');
+
+  const setStatus = (msg, color) => {
+    statusEl.style.display = 'flex';
+    statusEl.style.background = color === 'gold' ? 'var(--gold-bg)' : color === 'green' ? 'var(--green-bg)' : 'rgba(201,64,64,0.07)';
+    statusEl.style.border = `1px solid ${color === 'gold' ? 'var(--gold-border)' : color === 'green' ? 'rgba(76,175,116,0.35)' : 'rgba(201,64,64,0.3)'}`;
+    statusEl.style.color = color === 'gold' ? 'var(--gold-light)' : color === 'green' ? 'var(--green)' : 'var(--red)';
+    statusEl.textContent = msg;
+  };
+
+  setStatus(`⏳ Processing ${files.length} benchtop PDF${files.length > 1 ? 's' : ''}…`, 'gold');
+
+  let allCodes = {};
+
+  for (const file of files) {
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/.netlify/functions/claude-extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64: base64, mode: 'benchtop' })
+      });
+
+      const rawText = await response.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch(e) { throw new Error('Invalid response'); }
+      if (data.error) throw new Error(data.error);
+
+      const text = data.codes;
+      if (!text) throw new Error('No codes found');
+
+      text.split('\n').filter(l => l.trim()).forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        const code = parts[0].toUpperCase();
+        const val = parseFloat(parts[1]) || 1;
+        allCodes[code] = (allCodes[code] || 0) + val;
+      });
+    } catch(err) {
+      setStatus(`⚠ ${file.name}: ${err.message}`, 'red');
+    }
+  }
+
+  const mergedLines = Object.entries(allCodes).map(([code, val]) => `${code} ${val}`);
+  if (mergedLines.length > 0) {
+    populateBenchtopEditor(mergedLines);
+    setStatus(`✓ Extracted ${mergedLines.length} benchtop code${mergedLines.length !== 1 ? 's' : ''} — review then click Calculate CBM`, 'green');
+    zone.style.borderColor = 'var(--green)';
+  } else {
+    setStatus('⚠ No benchtop codes found', 'red');
+  }
+  input.value = '';
+}
+
+function populateBenchtopEditor(lines) {
+  const editor = document.getElementById('benchtopQtyEditor');
+  const rowsEl = document.getElementById('benchtopRows');
+  rowsEl.innerHTML = '';
+
+  lines.forEach(line => {
+    const parts = line.trim().split(/\s+/);
+    const code = parts[0].toUpperCase();
+    const val = parseFloat(parts[1]) || 1;
+    const entry = library[code];
+    const isM2M = entry && entry.type === 'benchtop_m2m';
+    rowsEl.appendChild(makeBenchtopRow(code, val, isM2M));
+  });
+
+  editor.style.display = 'block';
+  document.getElementById('benchtopCBMLine').style.display = 'block';
+}
+
+function makeBenchtopRow(code, val, isM2M) {
+  const inLib = library[code] !== undefined;
+  const div = document.createElement('div');
+  div.className = 'qty-row';
+  div.dataset.code = code;
+  const label = isM2M ? 'Length (m)' : 'Qty';
+  div.innerHTML = `
+    <span class="qty-code ${!inLib ? 'missing' : ''}" title="${!inLib ? 'Not in library' : ''}">${code}${!inLib ? ' ⚠' : ''}</span>
+    <span style="font-size:10px; color:var(--text-dim); flex-shrink:0;">${label}</span>
+    <div class="qty-controls">
+      <button class="qty-btn" onclick="adjustBenchtopQty(this, ${isM2M ? -0.1 : -1}, ${isM2M})">−</button>
+      <input class="qty-num" type="number" value="${val}" min="0" step="${isM2M ? '0.01' : '1'}" style="width:44px;">
+      <button class="qty-btn" onclick="adjustBenchtopQty(this, ${isM2M ? 0.1 : 1}, ${isM2M})">+</button>
+    </div>
+    <button class="qty-delete" onclick="this.closest('.qty-row').remove(); if(document.getElementById('cbmResult').classList.contains('show')) calcCBM();" title="Remove">×</button>
+  `;
+  return div;
+}
+
+function adjustBenchtopQty(btn, delta, isM2M) {
+  const input = btn.parentElement.querySelector('.qty-num');
+  const newVal = Math.max(0, parseFloat(input.value) + delta);
+  input.value = isM2M ? newVal.toFixed(2) : Math.round(newVal);
+  if (document.getElementById('cbmResult').classList.contains('show')) calcCBM();
+}
+
+function addBenchtopRow() {
+  const code = prompt('Enter benchtop code:');
+  if (!code) return;
+  const entry = library[code.toUpperCase().trim()];
+  const isM2M = entry && entry.type === 'benchtop_m2m';
+  const val = isM2M ? parseFloat(prompt('Length in metres:', '1.0')) || 1.0 : parseInt(prompt('Quantity:', '1')) || 1;
+  document.getElementById('benchtopRows').appendChild(makeBenchtopRow(code.toUpperCase().trim(), val, isM2M));
+  document.getElementById('benchtopQtyEditor').style.display = 'block';
+  document.getElementById('benchtopCBMLine').style.display = 'block';
 }
 
 function clearCodes() {
