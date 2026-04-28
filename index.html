@@ -1537,6 +1537,7 @@ async function extractFromPDF(input) {
       };
 
       try {
+        if (typeof PDFLib === 'undefined') throw new Error('pdf-lib not loaded');
         const pdfDoc = await PDFLib.PDFDocument.load(uint8Array);
         const totalPages = pdfDoc.getPageCount();
 
@@ -1555,6 +1556,8 @@ async function extractFromPDF(input) {
           }
         }
       } catch(splitErr) {
+        // Show the actual error so we can debug
+        fileItem.innerHTML = `<span style="color:var(--gold)">⚠</span><span>${file.name}</span><span style="color:var(--gold)">Split error: ${splitErr.message} — sending as single chunk</span>`;
         chunks = [toBase64(uint8Array)];
       }
 
