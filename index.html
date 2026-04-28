@@ -627,6 +627,83 @@ textarea {
 .webhook-row .wh-field { flex: 1; }
 .webhook-row label { color: var(--gold-light); }
 
+/* ── QTY EDITOR ─── */
+.qty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-bottom: 6px;
+}
+.qty-row:last-child { margin-bottom: 0; }
+
+.qty-code {
+  flex: 1;
+  font-family: 'Barlow Condensed', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+.qty-code.missing { color: var(--red); }
+
+.qty-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.qty-btn {
+  width: 28px; height: 28px;
+  background: var(--surface2);
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.qty-btn:hover { background: var(--gold); color: #000; }
+
+.qty-num {
+  width: 32px;
+  text-align: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gold-light);
+  background: var(--bg);
+  border: none;
+  border-left: 1px solid var(--border-hi);
+  border-right: 1px solid var(--border-hi);
+  padding: 0;
+  outline: none;
+}
+
+.qty-delete {
+  width: 24px; height: 24px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 2px;
+  flex-shrink: 0;
+  transition: color 0.1s;
+  margin-left: 2px;
+}
+.qty-delete:hover { color: var(--red); }
+
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -720,10 +797,22 @@ textarea {
             </div>
             <div id="pdfStatus" style="display:none; font-size:11px; padding:7px 11px; border-radius:var(--r); margin-top:8px; align-items:center; gap:8px;"></div>
           </div>
-          <div class="field">
+
+          <!-- Quantity Editor — shown after PDF extraction -->
+          <div id="qtyEditor" style="display:none; margin-bottom:14px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <label style="margin:0;">Review &amp; adjust quantities</label>
+              <button class="btn btn-ghost" onclick="addCodeRow()" style="font-size:10px;padding:4px 10px;">+ Add code</button>
+            </div>
+            <div id="qtyRows"></div>
+          </div>
+
+          <!-- Manual textarea — shown when no PDF loaded -->
+          <div class="field" id="manualCodesField">
             <label>Cabinet codes — one per line, optional qty after space</label>
             <textarea id="codesInput" placeholder="W600 2&#10;B900&#10;T800 3&#10;OV600"></textarea>
           </div>
+
           <div class="btn-row" style="margin-top:0;">
             <button class="btn btn-gold btn-full" onclick="calcCBM()">Calculate CBM</button>
             <button class="btn btn-ghost" onclick="clearCodes()">Clear</button>
@@ -1341,14 +1430,15 @@ async function extractFromPDF(input) {
 
     if (!text) throw new Error('No codes found in response');
 
-    // Populate the codes textarea
-    document.getElementById('codesInput').value = text;
-    const lineCount = text.split('\n').filter(l => l.trim()).length;
-    setStatus(`✓ Extracted ${lineCount} cabinet code${lineCount !== 1 ? 's' : ''} from PDF — review below then click Calculate CBM`, 'green');
+    // Populate the qty editor
+    const lines = text.split('\n').filter(l => l.trim());
+    populateQtyEditor(lines);
+    const lineCount = lines.length;
+    setStatus(`✓ Extracted ${lineCount} cabinet code${lineCount !== 1 ? 's' : ''} from PDF — review quantities below then click Calculate CBM`, 'green');
     zone.style.borderColor = 'var(--green)';
 
-    // Auto-scroll to the textarea
-    document.getElementById('codesInput').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Auto-scroll to editor
+    document.getElementById('qtyEditor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   } catch (err) {
     setStatus(`⚠ Extraction failed: ${err.message}`, 'red');
@@ -1359,19 +1449,83 @@ async function extractFromPDF(input) {
   input.value = '';
 }
 
-// ── CBM ───────────────────────────────────────────────────────────────────────
-function calcCBM() {
-  const raw = document.getElementById('codesInput').value.trim();
-  if (!raw) { showStatus('Paste some cabinet codes first.', 'error'); return; }
-  const lines = raw.split('\n').filter(l => l.trim());
-  let total = 0;
-  const breakdown = [];
-  const missing = [];
+// ── QTY EDITOR ───────────────────────────────────────────────────────────────
+function populateQtyEditor(lines) {
+  const editor = document.getElementById('qtyEditor');
+  const manualField = document.getElementById('manualCodesField');
+  const rowsEl = document.getElementById('qtyRows');
+  rowsEl.innerHTML = '';
 
   lines.forEach(line => {
     const parts = line.trim().split(/\s+/);
     const code = parts[0].toUpperCase();
     const qty = parts[1] ? parseInt(parts[1]) : 1;
+    rowsEl.appendChild(makeQtyRow(code, qty));
+  });
+
+  editor.style.display = 'block';
+  manualField.style.display = 'none';
+}
+
+function makeQtyRow(code, qty) {
+  const inLib = library[code] !== undefined;
+  const div = document.createElement('div');
+  div.className = 'qty-row';
+  div.dataset.code = code;
+  div.innerHTML = `
+    <span class="qty-code ${!inLib ? 'missing' : ''}" title="${!inLib ? 'Not in dimension library' : ''}">${code}${!inLib ? ' ⚠' : ''}</span>
+    <div class="qty-controls">
+      <button class="qty-btn" onclick="adjustQty(this, -1)">−</button>
+      <input class="qty-num" type="number" value="${qty}" min="1" max="99">
+      <button class="qty-btn" onclick="adjustQty(this, 1)">+</button>
+    </div>
+    <button class="qty-delete" onclick="this.closest('.qty-row').remove()" title="Remove">×</button>
+  `;
+  return div;
+}
+
+function adjustQty(btn, delta) {
+  const input = btn.parentElement.querySelector('.qty-num');
+  const newVal = Math.max(1, parseInt(input.value) + delta);
+  input.value = newVal;
+}
+
+function addCodeRow() {
+  const code = prompt('Enter cabinet code:');
+  if (!code) return;
+  const qty = parseInt(prompt('Quantity:', '1')) || 1;
+  document.getElementById('qtyRows').appendChild(makeQtyRow(code.toUpperCase().trim(), qty));
+}
+
+function getCodesFromEditor() {
+  // Read from qty editor if visible, otherwise from textarea
+  const editor = document.getElementById('qtyEditor');
+  if (editor.style.display !== 'none') {
+    const rows = editor.querySelectorAll('.qty-row');
+    return Array.from(rows).map(row => {
+      const code = row.dataset.code;
+      const qty = parseInt(row.querySelector('.qty-num').value) || 1;
+      return { code, qty };
+    });
+  } else {
+    const raw = document.getElementById('codesInput').value.trim();
+    return raw.split('\n').filter(l => l.trim()).map(line => {
+      const parts = line.trim().split(/\s+/);
+      return { code: parts[0].toUpperCase(), qty: parts[1] ? parseInt(parts[1]) : 1 };
+    });
+  }
+}
+
+// ── CBM ───────────────────────────────────────────────────────────────────────
+function calcCBM() {
+  const items = getCodesFromEditor();
+  if (!items.length) { showStatus('Add some cabinet codes first.', 'error'); return; }
+
+  let total = 0;
+  const breakdown = [];
+  const missing = [];
+
+  items.forEach(({ code, qty }) => {
     if (library[code]) {
       const { l, w, h } = library[code];
       const cbm = (l / 1000) * (w / 1000) * (h / 1000) * qty;
@@ -1400,7 +1554,12 @@ function calcCBM() {
 
 function clearCodes() {
   document.getElementById('codesInput').value = '';
+  document.getElementById('qtyRows').innerHTML = '';
+  document.getElementById('qtyEditor').style.display = 'none';
+  document.getElementById('manualCodesField').style.display = 'block';
   document.getElementById('cbmResult').className = 'cbm-result';
+  document.getElementById('pdfUploadZone').style.borderColor = '';
+  document.getElementById('pdfStatus').style.display = 'none';
   lastCBM = null;
 }
 
