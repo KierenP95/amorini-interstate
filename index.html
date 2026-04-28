@@ -793,7 +793,7 @@ textarea {
             <label>Upload job PDF <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);">— AI will extract cabinet codes automatically</span></label>
             <div class="upload-zone" id="pdfUploadZone">
               <input type="file" id="pdfFile" accept=".pdf" multiple onchange="extractFromPDF(this)">
-              <p><strong>Click to upload</strong> job sheet PDF(s)<br>Select multiple files for multi-room jobs</p>
+              <p><strong>Click to upload</strong> Katana label PDF(s)<br>Cabinets, benchtops &amp; doors extracted automatically</p>
             </div>
             <div id="pdfStatus" style="display:none; font-size:11px; padding:7px 11px; border-radius:var(--r); margin-top:8px; align-items:center; gap:8px;"></div>
             <div id="pdfFileList" style="margin-top:8px; display:none;">
@@ -828,29 +828,39 @@ textarea {
             <div class="cbm-breakdown" id="cbmBreakdown"></div>
           </div>
 
-          <!-- Benchtop Section -->
-          <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-              <label style="margin:0; color:var(--gold-light);">Benchtops</label>
-              <button class="btn btn-ghost" onclick="toggleBenchtops()" id="benchtopToggle" style="font-size:10px;padding:4px 10px;">+ Add benchtops</button>
-            </div>
-            <div id="benchtopSection" style="display:none;">
-              <div class="upload-zone" id="benchtopUploadZone" style="margin-bottom:10px;">
-                <input type="file" id="benchtopFile" accept=".pdf" multiple onchange="extractBenchtopsFromPDF(this)">
-                <p><strong>Click to upload</strong> benchtop label PDF(s)<br>Codes and lengths will be extracted automatically</p>
+          <!-- Benchtops & Doors Section -->
+          <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;" id="extrasSection">
+
+            <!-- Benchtops -->
+            <div style="margin-bottom:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <label style="margin:0; color:var(--gold-light); font-size:11px;">Benchtops</label>
+                <button class="btn btn-ghost" onclick="addBenchtopRow()" style="font-size:10px;padding:3px 8px;">+ Add manually</button>
               </div>
-              <div id="benchtopStatus" style="display:none; font-size:11px; padding:7px 11px; border-radius:var(--r); margin-bottom:10px; align-items:center; gap:8px;"></div>
-              <div id="benchtopQtyEditor" style="display:none; margin-bottom:10px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                  <label style="margin:0; font-size:10px;">Review benchtop codes &amp; lengths</label>
-                  <button class="btn btn-ghost" onclick="addBenchtopRow()" style="font-size:10px;padding:4px 10px;">+ Add manually</button>
-                </div>
+              <div id="benchtopQtyEditor" style="display:none; margin-bottom:6px;">
                 <div id="benchtopRows"></div>
               </div>
+              <div id="benchtopCBMLine" style="display:none; font-size:11px; color:var(--text-muted);">
+                Benchtop CBM: <span id="benchtopCBMVal" style="color:var(--gold-light); font-weight:700;">0.000</span> m³
+              </div>
+              <div id="noBenchtops" style="font-size:11px; color:var(--text-dim);">No benchtops extracted yet — upload a combined PDF above</div>
             </div>
-            <div id="benchtopCBMLine" style="display:none; font-size:12px; color:var(--text-muted); margin-top:6px;">
-              Benchtop CBM: <span id="benchtopCBMVal" style="color:var(--gold-light); font-weight:700;">0.000</span> m³
+
+            <!-- Doors -->
+            <div style="border-top:1px solid var(--border); padding-top:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <label style="margin:0; color:var(--gold-light); font-size:11px;">Doors &amp; Panels</label>
+                <button class="btn btn-ghost" onclick="addDoorRow()" style="font-size:10px;padding:3px 8px;">+ Add manually</button>
+              </div>
+              <div id="doorQtyEditor" style="display:none; margin-bottom:6px;">
+                <div id="doorRows"></div>
+              </div>
+              <div id="doorCBMLine" style="display:none; font-size:11px; color:var(--text-muted);">
+                Door/Panel CBM: <span id="doorCBMVal" style="color:var(--gold-light); font-weight:700;">0.000</span> m³
+              </div>
+              <div id="noDoors" style="font-size:11px; color:var(--text-dim);">No doors extracted yet — upload a combined PDF above</div>
             </div>
+
           </div>
 
           <!-- CBM Notes -->
@@ -1375,39 +1385,46 @@ function processRows(rows, headers) {
   let skipped = 0;
 
   // Detect format by headers
-  // Cabinet format: Code, Width, Height, Depth
-  // Benchtop format: Code, Category, Type, Length_mm, Depth_mm, Thickness_mm
-  const isBenchtop = headers && (
-    headers.includes('type') || 
-    headers.includes('length_mm') || 
-    headers.includes('thickness_mm')
-  );
+  const isMaster = headers && headers.includes('type') && headers.includes('category');
+  const isBenchtop = !isMaster && headers && (headers.includes('length_mm') || headers.includes('thickness_mm'));
 
   rows.forEach(r => {
     const code = (r[0] || '').toString().trim().toUpperCase();
     if (!code) return;
 
-    if (isBenchtop) {
-      // Benchtop format: Code, Category, Type, Length_mm, Depth_mm, Thickness_mm
-      const type = (r[2] || '').toString().trim().toUpperCase(); // SLAB or M2M
+    if (isMaster) {
+      // Master library format: Code, Width, Height, Depth, Type, Category
+      const w = parseFloat(r[1]), h = parseFloat(r[2]), d = parseFloat(r[3]);
+      const type = (r[4] || '').toString().trim().toLowerCase();
+      if (!code || isNaN(h)) { skipped++; return; }
+
+      if (type === 'benchtop_m2m') {
+        // Width=depth, Height=thickness, Depth=0
+        library[code] = { type: 'benchtop_m2m', depth: w, thickness: h };
+      } else if (type === 'benchtop_slab') {
+        library[code] = { type: 'benchtop_slab', l: w, w: h, h: d };
+      } else if (type === 'door') {
+        library[code] = { type: 'door', l: w, w: h, h: d };
+      } else {
+        // Cabinet
+        library[code] = { l: w, w: h, h: d };
+      }
+      count++;
+    } else if (isBenchtop) {
+      const type = (r[2] || '').toString().trim().toUpperCase();
       const length = r[3] === 'M2M' ? 'M2M' : parseFloat(r[3]);
       const depth = parseFloat(r[4]);
       const thickness = parseFloat(r[5]) || 20;
-
-      if (code && !isNaN(depth) && !isNaN(thickness)) {
+      if (code && !isNaN(depth)) {
         if (type === 'M2M' || r[3] === 'M2M') {
-          // M2M — length comes from label, store depth and thickness
           library[code] = { type: 'benchtop_m2m', depth, thickness };
         } else if (!isNaN(length)) {
-          // Slab — full dimensions known, store as l×d×t (in mm)
           library[code] = { type: 'benchtop_slab', l: length, w: depth, h: thickness };
         }
         count++;
-      } else {
-        skipped++;
-      }
+      } else skipped++;
     } else {
-      // Cabinet format: Code, Width, Height, Depth
+      // Cabinet or door format: Code, Width, Height, Depth
       const l = parseFloat(r[1]), w = parseFloat(r[2]), h = parseFloat(r[3]);
       if (code && !isNaN(l) && !isNaN(w) && !isNaN(h)) {
         library[code] = { l, w, h };
@@ -1445,14 +1462,16 @@ function updateLibStatus() {
   const codes = Object.keys(library);
   const cabinetCount = codes.filter(k => !library[k].type || library[k].type === 'cabinet').length;
   const benchtopCount = codes.filter(k => library[k].type && library[k].type.startsWith('benchtop')).length;
+  const doorCount = codes.filter(k => library[k].type === 'door').length;
   const total = codes.length;
   document.getElementById('libDot').className = 'lib-dot' + (total > 0 ? ' on' : '');
   if (total === 0) {
-    document.getElementById('libStatusText').textContent = 'No library loaded — upload your cabinet dimensions file';
+    document.getElementById('libStatusText').textContent = 'No library loaded — upload master library CSV';
   } else {
     const parts = [];
-    if (cabinetCount > 0) parts.push(`${cabinetCount} cabinet codes`);
-    if (benchtopCount > 0) parts.push(`${benchtopCount} benchtop codes`);
+    if (cabinetCount > 0) parts.push(`${cabinetCount} cabinets`);
+    if (benchtopCount > 0) parts.push(`${benchtopCount} benchtops`);
+    if (doorCount > 0) parts.push(`${doorCount} doors`);
     document.getElementById('libStatusText').textContent = parts.join(', ') + ' loaded';
   }
 }
@@ -1535,19 +1554,46 @@ async function extractFromPDF(input) {
     }
   }
 
-  // Populate qty editor with merged codes
-  const mergedLines = Object.entries(allCodes).map(([code, qty]) => `${code} ${qty}`);
-  if (mergedLines.length > 0) {
-    populateQtyEditor(mergedLines);
-    const uniqueCodes = Object.keys(allCodes).length;
+  // Split codes into cabinets, benchtops and doors based on library type
+  const cabinetCodes = [], benchtopCodes = [], doorCodes = [], unknownCodes = [];
+
+  Object.entries(allCodes).forEach(([code, qty]) => {
+    const entry = library[code];
+    if (!entry) {
+      unknownCodes.push(`${code} ${qty}`);
+    } else if (entry.type === 'door') {
+      doorCodes.push(`${code} ${qty}`);
+    } else if (entry.type && entry.type.startsWith('benchtop')) {
+      benchtopCodes.push(`${code} ${qty}`);
+    } else {
+      cabinetCodes.push(`${code} ${qty}`);
+    }
+  });
+
+  // Unknown codes go to cabinets (show as missing)
+  const allCabinetLines = [...cabinetCodes, ...unknownCodes];
+
+  const totalCodes = Object.keys(allCodes).length;
+
+  if (totalCodes > 0) {
+    if (allCabinetLines.length > 0) populateQtyEditor(allCabinetLines);
+    if (benchtopCodes.length > 0) populateBenchtopEditor(benchtopCodes);
+    if (doorCodes.length > 0) populateDoorEditor(doorCodes);
+
+    const parts = [];
+    if (cabinetCodes.length > 0) parts.push(`${cabinetCodes.length} cabinet${cabinetCodes.length !== 1 ? 's' : ''}`);
+    if (benchtopCodes.length > 0) parts.push(`${benchtopCodes.length} benchtop${benchtopCodes.length !== 1 ? 's' : ''}`);
+    if (doorCodes.length > 0) parts.push(`${doorCodes.length} door${doorCodes.length !== 1 ? 's' : ''}`);
+    if (unknownCodes.length > 0) parts.push(`${unknownCodes.length} unknown`);
+
     const msg = errors.length > 0
-      ? `✓ Extracted ${uniqueCodes} unique codes from ${files.length - errors.length}/${files.length} PDFs — ${errors.length} failed`
-      : `✓ Extracted ${uniqueCodes} unique codes from ${files.length} PDF${files.length > 1 ? 's' : ''} — review quantities then click Calculate CBM`;
+      ? `✓ Extracted ${parts.join(', ')} — ${errors.length} PDF(s) failed`
+      : `✓ Extracted ${parts.join(', ')} — review quantities then click Calculate CBM`;
     setStatus(msg, errors.length > 0 ? 'gold' : 'green');
     zone.style.borderColor = 'var(--green)';
     document.getElementById('qtyEditor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } else {
-    setStatus('⚠ No cabinet codes found in any of the uploaded PDFs', 'red');
+    setStatus('⚠ No codes found in any of the uploaded PDFs', 'red');
     zone.style.borderColor = 'var(--red)';
   }
 
@@ -1612,6 +1658,80 @@ function adjustQty(btn, delta) {
   if (document.getElementById('cbmResult').classList.contains('show')) calcCBM();
 }
 
+// ── DOOR EDITOR ──────────────────────────────────────────────────────────────
+function populateDoorEditor(lines) {
+  const editor = document.getElementById('doorQtyEditor');
+  const rowsEl = document.getElementById('doorRows');
+  const noDoors = document.getElementById('noDoors');
+
+  const existing = {};
+  rowsEl.querySelectorAll('.qty-row').forEach(row => {
+    existing[row.dataset.code] = parseInt(row.querySelector('.qty-num').value) || 1;
+  });
+
+  lines.forEach(line => {
+    const parts = line.trim().split(/\s+/);
+    const code = parts[0].toUpperCase();
+    const qty = parts[1] ? parseInt(parts[1]) : 1;
+    if (existing[code]) {
+      const row = rowsEl.querySelector(`.qty-row[data-code="${code}"]`);
+      if (row) row.querySelector('.qty-num').value = existing[code] + qty;
+    } else {
+      rowsEl.appendChild(makeDoorRow(code, qty));
+    }
+  });
+
+  editor.style.display = 'block';
+  if (noDoors) noDoors.style.display = 'none';
+}
+
+function makeDoorRow(code, qty) {
+  const inLib = library[code] !== undefined;
+  const div = document.createElement('div');
+  div.className = 'qty-row';
+  div.dataset.code = code;
+  div.innerHTML = `
+    <span class="qty-code ${!inLib ? 'missing' : ''}" title="${!inLib ? 'Not in library' : ''}">${code}${!inLib ? ' ⚠' : ''}</span>
+    <div class="qty-controls">
+      <button class="qty-btn" onclick="adjustDoorQty(this, -1)">−</button>
+      <input class="qty-num" type="number" value="${qty}" min="1" max="999">
+      <button class="qty-btn" onclick="adjustDoorQty(this, 1)">+</button>
+    </div>
+    <button class="qty-delete" onclick="this.closest('.qty-row').remove(); if(document.getElementById('cbmResult').classList.contains('show')) calcCBM();" title="Remove">×</button>
+  `;
+  return div;
+}
+
+function adjustDoorQty(btn, delta) {
+  const input = btn.parentElement.querySelector('.qty-num');
+  input.value = Math.max(1, parseInt(input.value) + delta);
+  if (document.getElementById('cbmResult').classList.contains('show')) calcCBM();
+}
+
+function addDoorRow() {
+  const code = prompt('Enter door/panel code:');
+  if (!code) return;
+  const qty = parseInt(prompt('Quantity:', '1')) || 1;
+  document.getElementById('doorRows').appendChild(makeDoorRow(code.toUpperCase().trim(), qty));
+  document.getElementById('doorQtyEditor').style.display = 'block';
+  const noDoors = document.getElementById('noDoors');
+  if (noDoors) noDoors.style.display = 'none';
+}
+
+function calcDoorCBM() {
+  const rows = document.getElementById('doorRows');
+  if (!rows) return 0;
+  let total = 0;
+  rows.querySelectorAll('.qty-row').forEach(row => {
+    const code = row.dataset.code;
+    const entry = library[code];
+    if (!entry) return;
+    const qty = parseInt(row.querySelector('.qty-num').value) || 0;
+    total += (entry.l / 1000) * (entry.w / 1000) * (entry.h / 1000) * qty;
+  });
+  return total;
+}
+
 function addCodeRow() {
   const code = prompt('Enter cabinet code:');
   if (!code) return;
@@ -1664,18 +1784,20 @@ function calcCBM() {
     }
   });
 
-  // Add benchtop CBM if calculated
+  // Add benchtop and door CBM
   const benchtopCBM = calcBenchtopCBM();
-  const combinedTotal = cabinetTotal + benchtopCBM;
+  const doorCBM = calcDoorCBM();
+  const combinedTotal = cabinetTotal + benchtopCBM + doorCBM;
 
   const totalCabinets = items.reduce((sum, { qty }) => sum + qty, 0);
   lastCBM = combinedTotal.toFixed(3);
   lastCabinetCount = totalCabinets;
   document.getElementById('cbmNum').textContent = lastCBM;
 
-  let countText = `${totalCabinets} cabinet${totalCabinets !== 1 ? 's' : ''}`;
-  if (benchtopCBM > 0) countText += ` + benchtops (${benchtopCBM.toFixed(3)} m³)`;
-  document.getElementById('cbmCabinetCount').textContent = countText + ' total';
+  const parts = [`${totalCabinets} cabinet${totalCabinets !== 1 ? 's' : ''}`];
+  if (benchtopCBM > 0) parts.push(`benchtops ${benchtopCBM.toFixed(3)} m³`);
+  if (doorCBM > 0) parts.push(`doors ${doorCBM.toFixed(3)} m³`);
+  document.getElementById('cbmCabinetCount').textContent = parts.join(' + ') + ' total';
 
   let html = '';
   breakdown.forEach(({ code, qty, cbm }) => {
@@ -1683,6 +1805,9 @@ function calcCBM() {
   });
   if (benchtopCBM > 0) {
     html += `<div class="br-row" style="border-top:1px solid var(--border); margin-top:4px; padding-top:4px;"><span class="br-code" style="color:var(--gold)">Benchtops</span><span class="br-val">${benchtopCBM.toFixed(3)} m³</span></div>`;
+  }
+  if (doorCBM > 0) {
+    html += `<div class="br-row"><span class="br-code" style="color:var(--gold)">Doors &amp; Panels</span><span class="br-val">${doorCBM.toFixed(3)} m³</span></div>`;
   }
   missing.forEach(code => {
     html += `<div class="br-row"><span class="br-code br-miss">${code}</span><span style="font-size:10px;color:var(--red)">Not in library</span></div>`;
@@ -1851,6 +1976,17 @@ function clearCodes() {
   document.getElementById('pdfStatus').style.display = 'none';
   document.getElementById('pdfFileList').style.display = 'none';
   document.getElementById('pdfFileItems').innerHTML = '';
+  // Reset benchtop and door sections
+  document.getElementById('benchtopRows').innerHTML = '';
+  document.getElementById('benchtopQtyEditor').style.display = 'none';
+  document.getElementById('benchtopCBMLine').style.display = 'none';
+  document.getElementById('doorRows').innerHTML = '';
+  document.getElementById('doorQtyEditor').style.display = 'none';
+  document.getElementById('doorCBMLine').style.display = 'none';
+  const noBench = document.getElementById('noBenchtops');
+  const noDoors = document.getElementById('noDoors');
+  if (noBench) noBench.style.display = 'block';
+  if (noDoors) noDoors.style.display = 'block';
   uploadedPDFs = [];
   lastCBM = null;
   lastCabinetCount = null;
