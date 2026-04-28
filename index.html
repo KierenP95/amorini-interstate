@@ -1639,36 +1639,79 @@ function buildEmailBody() {
     return `${parseInt(day)} ${months[parseInt(m)-1]} ${y}`;
   };
 
-  return `Hi,
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; font-size: 14px; color: #222; max-width: 600px; margin: 0 auto;">
 
-I'd like to request a booking for the following interstate delivery from Amorini Logistics.
+  <p>Hi,</p>
+  <p>I'd like to request a booking for the following interstate delivery from Amorini Logistics.</p>
 
-─────────────────────────────────────
-JOB DETAILS
-─────────────────────────────────────
-Job Reference:      ${jobRef}
-Job Name:           ${customer}
-Delivery Address:   ${address}
-Site Contact:       ${siteContact}
-Site Number:        ${siteNumber}
-Requested Pick-Up:  ${formatDate(pickupDate)}
-Requested Delivery: ${formatDate(deliveryDate)}
+  <table style="width:100%; border-collapse:collapse; margin: 20px 0;">
+    <tr style="background:#1a1a1a;">
+      <td colspan="2" style="padding:10px 14px; color:#c9922a; font-weight:bold; font-size:12px; letter-spacing:0.1em; text-transform:uppercase;">Job Details</td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <td style="padding:8px 14px; font-weight:600; width:40%; border-bottom:1px solid #e0e0e0;">Job Reference</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${jobRef}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Job Name</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${customer}</td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Delivery Address</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${address}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Site Contact</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${siteContact}</td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Site Number</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${siteNumber}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Requested Pick-Up</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${formatDate(pickupDate)}</td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <td style="padding:8px 14px; font-weight:600;">Requested Delivery</td>
+      <td style="padding:8px 14px;">${formatDate(deliveryDate)}</td>
+    </tr>
+  </table>
 
-─────────────────────────────────────
-FREIGHT DETAILS
-─────────────────────────────────────
-Total Cabinets:     ${lastCabinetCount || '—'}
-Total CBM:          ${cbm} m³
-Cargo Type:         ${cargo}
-Freight Type:       ${freight}
-${notes ? `\nNotes: ${notes}\n` : ''}
-─────────────────────────────────────
+  <table style="width:100%; border-collapse:collapse; margin: 20px 0;">
+    <tr style="background:#1a1a1a;">
+      <td colspan="2" style="padding:10px 14px; color:#c9922a; font-weight:bold; font-size:12px; letter-spacing:0.1em; text-transform:uppercase;">Freight Details</td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <td style="padding:8px 14px; font-weight:600; width:40%; border-bottom:1px solid #e0e0e0;">Total Cabinets</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${lastCabinetCount || '—'}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Total CBM</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;"><strong>${cbm} m³</strong></td>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Cargo Type</td>
+      <td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${cargo}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 14px; font-weight:600; ${notes ? 'border-bottom:1px solid #e0e0e0;' : ''}">Freight Type</td>
+      <td style="padding:8px 14px; ${notes ? 'border-bottom:1px solid #e0e0e0;' : ''}">${freight}</td>
+    </tr>
+    ${notes ? `<tr style="background:#f9f9f9;"><td style="padding:8px 14px; font-weight:600;">Notes</td><td style="padding:8px 14px;">${notes}</td></tr>` : ''}
+  </table>
 
-Please confirm availability and rates at your earliest convenience.
+  <p>Please confirm availability and rates at your earliest convenience.</p>
 
-Kind regards,
-Amorini Logistics
-bookings@amorinilogistics.com.au`;
+  <p style="margin-top:24px;">Kind regards,<br>
+  <strong>Amorini Logistics</strong><br>
+  <a href="mailto:bookings@amorinilogistics.com.au" style="color:#c9922a;">bookings@amorinilogistics.com.au</a></p>
+
+</body>
+</html>`;
 }
 
 function previewEmail() {
