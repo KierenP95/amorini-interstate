@@ -1542,6 +1542,7 @@ async function extractFromPDF(input) {
         if (!PDFDocument) throw new Error('PDFDocument not found in pdf-lib');
         const pdfDoc = await PDFDocument.load(uint8Array);
         const totalPages = pdfDoc.getPageCount();
+        console.log(`PDF loaded — total pages: ${totalPages}, chunk size: ${CHUNK_SIZE}`);
 
         if (totalPages <= CHUNK_SIZE) {
           chunks = [toBase64(uint8Array)];
