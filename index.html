@@ -792,10 +792,14 @@ textarea {
           <div class="field">
             <label>Upload job PDF <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);">— AI will extract cabinet codes automatically</span></label>
             <div class="upload-zone" id="pdfUploadZone">
-              <input type="file" id="pdfFile" accept=".pdf" onchange="extractFromPDF(this)">
-              <p><strong>Click to upload</strong> job sheet PDF<br>Cabinet codes will be extracted automatically</p>
+              <input type="file" id="pdfFile" accept=".pdf" multiple onchange="extractFromPDF(this)">
+              <p><strong>Click to upload</strong> job sheet PDF(s)<br>Select multiple files for multi-room jobs</p>
             </div>
             <div id="pdfStatus" style="display:none; font-size:11px; padding:7px 11px; border-radius:var(--r); margin-top:8px; align-items:center; gap:8px;"></div>
+            <div id="pdfFileList" style="margin-top:8px; display:none;">
+              <div style="font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;">Uploaded PDFs</div>
+              <div id="pdfFileItems"></div>
+            </div>
           </div>
 
           <!-- Quantity Editor — shown after PDF extraction -->
@@ -820,6 +824,7 @@ textarea {
           <div class="cbm-result" id="cbmResult">
             <div class="cbm-num" id="cbmNum">0.00</div>
             <div class="cbm-unit">cubic metres</div>
+            <div id="cbmCabinetCount" style="font-size:11px; color:var(--text-muted); margin-bottom:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;"></div>
             <div class="cbm-breakdown" id="cbmBreakdown"></div>
           </div>
         </div>
@@ -1117,7 +1122,9 @@ const BOOKING_WEBHOOK = ''; // Set via UI input — saved to localStorage
 // ── STATE ────────────────────────────────────────────────────────────────────
 let library = {}; // { CODE: { l, w, h } }
 let lastCBM = null;
+let lastCabinetCount = null;
 let autocomplete = null;
+let uploadedPDFs = []; // Track uploaded PDF names
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -1375,11 +1382,13 @@ function updateLibStatus() {
 
 // ── PDF EXTRACTION ────────────────────────────────────────────────────────────
 async function extractFromPDF(input) {
-  const file = input.files[0];
-  if (!file) return;
+  const files = Array.from(input.files);
+  if (!files.length) return;
 
   const statusEl = document.getElementById('pdfStatus');
   const zone = document.getElementById('pdfUploadZone');
+  const fileList = document.getElementById('pdfFileList');
+  const fileItems = document.getElementById('pdfFileItems');
 
   const setStatus = (msg, color) => {
     statusEl.style.display = 'flex';
@@ -1389,64 +1398,83 @@ async function extractFromPDF(input) {
     statusEl.textContent = msg;
   };
 
-  setStatus('⏳ Reading PDF — extracting cabinet codes…', 'gold');
+  setStatus(`⏳ Processing ${files.length} PDF${files.length > 1 ? 's' : ''} — extracting cabinet codes…`, 'gold');
   zone.style.borderColor = 'var(--gold)';
 
-  try {
-    // Convert PDF to base64
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  // Show file list
+  fileList.style.display = 'block';
 
-    const response = await fetch('/.netlify/functions/claude-extract', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pdfBase64: base64 })
-    });
+  let allCodes = {}; // code -> qty, merged across all PDFs
+  let totalExtracted = 0;
+  let errors = [];
 
-    const rawText = await response.text();
-    console.log('Function response status:', response.status);
-    console.log('Function response body:', rawText.substring(0, 500));
+  for (const file of files) {
+    // Add file to list with pending status
+    const fileItem = document.createElement('div');
+    fileItem.style.cssText = 'font-size:11px; padding:4px 0; color:var(--text-muted); display:flex; gap:8px; align-items:center;';
+    fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span>`;
+    fileItems.appendChild(fileItem);
 
-    if (!rawText || rawText.trim() === '') {
-      throw new Error(`Empty response from function (status ${response.status}) — check Netlify function logs`);
-    }
-
-    let data;
     try {
-      data = JSON.parse(rawText);
-    } catch(e) {
-      throw new Error(`Invalid JSON from function: ${rawText.substring(0, 200)}`);
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/.netlify/functions/claude-extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64: base64 })
+      });
+
+      const rawText = await response.text();
+      if (!rawText || rawText.trim() === '') throw new Error('Empty response');
+
+      let data;
+      try { data = JSON.parse(rawText); } catch(e) { throw new Error('Invalid response'); }
+      if (data.error) throw new Error(data.error);
+
+      const text = data.codes;
+      if (!text) throw new Error('No codes found');
+
+      // Merge codes from this PDF into allCodes
+      const lines = text.split('\n').filter(l => l.trim());
+      lines.forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        const code = parts[0].toUpperCase();
+        const qty = parts[1] ? parseInt(parts[1]) : 1;
+        allCodes[code] = (allCodes[code] || 0) + qty;
+      });
+
+      totalExtracted += lines.length;
+      fileItem.innerHTML = `<span style="color:var(--green)">✓</span><span>${file.name}</span><span style="color:var(--text-dim)">${lines.length} code${lines.length !== 1 ? 's' : ''}</span>`;
+      uploadedPDFs.push(file.name);
+
+    } catch(err) {
+      fileItem.innerHTML = `<span style="color:var(--red)">⚠</span><span>${file.name}</span><span style="color:var(--red)">${err.message}</span>`;
+      errors.push(file.name);
     }
+  }
 
-    if (data.error) {
-      throw new Error(data.error);
-    }
-
-    console.log('RAW CLAUDE OUTPUT:', data.debug);
-    const text = data.codes;
-
-    if (!text) throw new Error('No codes found in response');
-
-    // Populate the qty editor
-    const lines = text.split('\n').filter(l => l.trim());
-    populateQtyEditor(lines);
-    const lineCount = lines.length;
-    setStatus(`✓ Extracted ${lineCount} cabinet code${lineCount !== 1 ? 's' : ''} from PDF — review quantities below then click Calculate CBM`, 'green');
+  // Populate qty editor with merged codes
+  const mergedLines = Object.entries(allCodes).map(([code, qty]) => `${code} ${qty}`);
+  if (mergedLines.length > 0) {
+    populateQtyEditor(mergedLines);
+    const uniqueCodes = Object.keys(allCodes).length;
+    const msg = errors.length > 0
+      ? `✓ Extracted ${uniqueCodes} unique codes from ${files.length - errors.length}/${files.length} PDFs — ${errors.length} failed`
+      : `✓ Extracted ${uniqueCodes} unique codes from ${files.length} PDF${files.length > 1 ? 's' : ''} — review quantities then click Calculate CBM`;
+    setStatus(msg, errors.length > 0 ? 'gold' : 'green');
     zone.style.borderColor = 'var(--green)';
-
-    // Auto-scroll to editor
     document.getElementById('qtyEditor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  } catch (err) {
-    setStatus(`⚠ Extraction failed: ${err.message}`, 'red');
+  } else {
+    setStatus('⚠ No cabinet codes found in any of the uploaded PDFs', 'red');
     zone.style.borderColor = 'var(--red)';
   }
 
-  // Reset file input so same file can be re-uploaded
+  // Reset file input so same files can be re-uploaded
   input.value = '';
 }
 
@@ -1455,13 +1483,27 @@ function populateQtyEditor(lines) {
   const editor = document.getElementById('qtyEditor');
   const manualField = document.getElementById('manualCodesField');
   const rowsEl = document.getElementById('qtyRows');
-  rowsEl.innerHTML = '';
 
+  // Get existing codes from editor
+  const existing = {};
+  rowsEl.querySelectorAll('.qty-row').forEach(row => {
+    const code = row.dataset.code;
+    const qty = parseInt(row.querySelector('.qty-num').value) || 1;
+    existing[code] = qty;
+  });
+
+  // Merge new lines into existing
   lines.forEach(line => {
     const parts = line.trim().split(/\s+/);
     const code = parts[0].toUpperCase();
     const qty = parts[1] ? parseInt(parts[1]) : 1;
-    rowsEl.appendChild(makeQtyRow(code, qty));
+    if (existing[code]) {
+      // Update qty on existing row
+      const row = rowsEl.querySelector(`.qty-row[data-code="${code}"]`);
+      if (row) row.querySelector('.qty-num').value = existing[code] + qty;
+    } else {
+      rowsEl.appendChild(makeQtyRow(code, qty));
+    }
   });
 
   editor.style.display = 'block';
@@ -1539,8 +1581,11 @@ function calcCBM() {
     }
   });
 
+  const totalCabinets = items.reduce((sum, { qty }) => sum + qty, 0);
   lastCBM = total.toFixed(3);
+  lastCabinetCount = totalCabinets;
   document.getElementById('cbmNum').textContent = lastCBM;
+  document.getElementById('cbmCabinetCount').textContent = `${totalCabinets} cabinet${totalCabinets !== 1 ? 's' : ''} total`;
 
   let html = '';
   breakdown.forEach(({ code, qty, cbm }) => {
@@ -1561,9 +1606,14 @@ function clearCodes() {
   document.getElementById('qtyEditor').style.display = 'none';
   document.getElementById('manualCodesField').style.display = 'block';
   document.getElementById('cbmResult').className = 'cbm-result';
+  document.getElementById('cbmCabinetCount').textContent = '';
   document.getElementById('pdfUploadZone').style.borderColor = '';
   document.getElementById('pdfStatus').style.display = 'none';
+  document.getElementById('pdfFileList').style.display = 'none';
+  document.getElementById('pdfFileItems').innerHTML = '';
+  uploadedPDFs = [];
   lastCBM = null;
+  lastCabinetCount = null;
 }
 
 // ── EMAIL PREVIEW ─────────────────────────────────────────────────────────────
@@ -1607,6 +1657,7 @@ Requested Delivery: ${formatDate(deliveryDate)}
 ─────────────────────────────────────
 FREIGHT DETAILS
 ─────────────────────────────────────
+Total Cabinets:     ${lastCabinetCount || '—'}
 Total CBM:          ${cbm} m³
 Cargo Type:         ${cargo}
 Freight Type:       ${freight}
@@ -1762,4 +1813,3 @@ function showStatus(msg, type) {
 </script>
 </body>
 </html>
-
