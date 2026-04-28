@@ -77,6 +77,9 @@ Output the list now. Nothing else.`
       return { statusCode: 500, body: JSON.stringify({ error: 'No text returned from Claude' }) };
     }
  
+    // Return raw Claude output for debugging
+    const rawClaude = text;
+ 
     // Hard filter — only keep lines that look like valid cabinet codes
     const excluded = new Set(['DW605','TFK','TFK_','SFP','FP','BEP','TEP','UP','F409','FLUPANEL']);
     const validCodePattern = /^[A-Z][A-Z0-9]+[A-Z0-9_]*$/;
@@ -138,7 +141,7 @@ Output the list now. Nothing else.`
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codes: finalText })
+      body: JSON.stringify({ codes: finalText, debug: rawClaude })
     };
  
   } catch (err) {
