@@ -1523,7 +1523,7 @@ async function extractFromPDF(input) {
       const uint8Array = new Uint8Array(arrayBuffer);
 
       // Split PDF into chunks of max 90 pages using pdf-lib
-      const CHUNK_SIZE = 90;
+      const CHUNK_SIZE = 50; // pages per chunk
       let chunks = [];
 
       // Safe base64 conversion that handles large arrays
@@ -1550,11 +1550,14 @@ async function extractFromPDF(input) {
           fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">${totalPages} pages — splitting into chunks…</span>`;
           for (let start = 0; start < totalPages; start += CHUNK_SIZE) {
             const end = Math.min(start + CHUNK_SIZE, totalPages);
+            console.log(`Creating chunk pages ${start}-${end-1}`);
             const subDoc = await PDFDocument.create();
             const indices = Array.from({length: end - start}, (_, i) => start + i);
             const copiedPages = await subDoc.copyPagesFrom(pdfDoc, indices);
+            console.log(`Copied ${copiedPages.length} pages`);
             copiedPages.forEach(p => subDoc.addPage(p));
             const subBytes = await subDoc.save();
+            console.log(`Chunk saved — ${subBytes.length} bytes`);
             chunks.push(toBase64(subBytes));
           }
         }
