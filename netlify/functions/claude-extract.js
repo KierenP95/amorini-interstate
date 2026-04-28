@@ -1,7 +1,14 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
+ 
+// Install pdf-lib if not available
+let PDFLib;
+try {
+  PDFLib = require('pdf-lib');
+} catch(e) {
+  // Will handle below
+}
  
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -20,32 +27,67 @@ exports.handler = async (event) => {
       return { statusCode: 500, body: JSON.stringify({ error: 'ANTHROPIC_API_KEY environment variable not set' }) };
     }
  
-    const isBenchtop = mode === 'benchtop';
- 
-    // Calculate approximate page count from base64 size
-    // Each page ~2-4KB, so estimate pages from file size
+    // Estimate page count from file size
     const fileSizeKB = (pdfBase64.length * 0.75) / 1024;
     const estimatedPages = Math.ceil(fileSizeKB / 3);
-    const MAX_PAGES_PER_CHUNK = 20; // Safe limit per API call
+    const CHUNK_SIZE = 30; // pages per chunk
  
-    // If small enough, process in one go
-    if (estimatedPages <= MAX_PAGES_PER_CHUNK) {
-      const result = await extractFromPDF(pdfBase64, isBenchtop);
+    if (estimatedPages <= CHUNK_SIZE) {
+      // Small PDF — process directly
+      const result = await callClaude(pdfBase64);
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codes: result })
+        body: JSON.stringify({ codes: processOutput(result) })
       };
     }
  
-    // Large PDF — we can't split PDFs without a library in Lambda
-    // Instead, send with a note to Claude to process all pages systematically
-    const result = await extractFromPDFLarge(pdfBase64, isBenchtop, estimatedPages);
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codes: result })
-    };
+    // Large PDF — split into chunks using pdf-lib
+    const pdfBytes = Buffer.from(pdfBase64, 'base64');
+    
+    try {
+      if (!PDFLib) PDFLib = require('/var/task/node_modules/pdf-lib');
+      
+      const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+      const totalPages = pdfDoc.getPageCount();
+      
+      const allResults = [];
+      
+      for (let start = 0; start < totalPages; start += CHUNK_SIZE) {
+        const end = Math.min(start + CHUNK_SIZE, totalPages);
+        
+        // Create a sub-document with this chunk of pages
+        const subDoc = await PDFLib.PDFDocument.create();
+        const pageIndices = [];
+        for (let i = start; i < end; i++) pageIndices.push(i);
+        
+        const copiedPages = await subDoc.copyPagesFrom(pdfDoc, pageIndices);
+        copiedPages.forEach(page => subDoc.addPage(page));
+        
+        const subPdfBytes = await subDoc.save();
+        const subBase64 = Buffer.from(subPdfBytes).toString('base64');
+        
+        const chunkResult = await callClaude(subBase64);
+        allResults.push(chunkResult);
+      }
+      
+      // Merge all chunk results
+      const merged = mergeResults(allResults);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes: merged })
+      };
+      
+    } catch(splitErr) {
+      // pdf-lib not available — fall back to sending full PDF with higher token limit
+      const result = await callClaudeLarge(pdfBase64, estimatedPages);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes: processOutput(result) })
+      };
+    }
  
   } catch (err) {
     return {
@@ -55,42 +97,7 @@ exports.handler = async (event) => {
   }
 };
  
-async function extractFromPDF(pdfBase64, isBenchtop) {
-  const prompt = isBenchtop ? getBenchtopPrompt() : getCabinetPrompt();
- 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 2000,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
-          { type: 'text', text: prompt }
-        ]
-      }]
-    })
-  });
- 
-  const data = await response.json();
-  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  const text = data.content?.find(b => b.type === 'text')?.text?.trim();
-  if (!text) throw new Error('No text returned from Claude');
-  return isBenchtop ? filterBenchtopOutput(text) : filterCabinetOutput(text);
-}
- 
-async function extractFromPDFLarge(pdfBase64, isBenchtop, estimatedPages) {
-  // For large PDFs, use higher max_tokens and explicitly instruct to process ALL pages
-  const prompt = isBenchtop
-    ? `This is a large PDF with approximately ${estimatedPages} pages. ` + getBenchtopPrompt(true)
-    : `This is a large PDF with approximately ${estimatedPages} pages. ` + getCabinetPrompt(true);
- 
+async function callClaude(pdfBase64) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -105,7 +112,7 @@ async function extractFromPDFLarge(pdfBase64, isBenchtop, estimatedPages) {
         role: 'user',
         content: [
           { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
-          { type: 'text', text: prompt }
+          { type: 'text', text: getPrompt() }
         ]
       }]
     })
@@ -113,21 +120,45 @@ async function extractFromPDFLarge(pdfBase64, isBenchtop, estimatedPages) {
  
   const data = await response.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  const text = data.content?.find(b => b.type === 'text')?.text?.trim();
-  if (!text) throw new Error('No text returned from Claude');
-  return isBenchtop ? filterBenchtopOutput(text) : filterCabinetOutput(text);
+  return data.content?.find(b => b.type === 'text')?.text?.trim() || '';
 }
  
-function getCabinetPrompt(large = false) {
-  return `Extract ALL product codes from this Katana label PDF. ${large ? 'Process EVERY single page — do not skip any.' : ''}
+async function callClaudeLarge(pdfBase64, estimatedPages) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 8000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+          { type: 'text', text: `This PDF has approximately ${estimatedPages} pages. Process ALL pages without skipping any.\n\n` + getPrompt() }
+        ]
+      }]
+    })
+  });
+ 
+  const data = await response.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return data.content?.find(b => b.type === 'text')?.text?.trim() || '';
+}
+ 
+function getPrompt() {
+  return `Extract ALL product codes from this Katana label PDF. Process every single page.
  
 This PDF may contain cabinets, benchtops and doors/panels mixed together.
  
 For each page output one line: CODE VALUE where:
 - Cabinets (prefix PMW-, OLOA-, PJMW- etc): strip prefix, output CODE QTY e.g. SB100 1
-- Benchtops M2M (prefix BXPMIR-, BXPDKT-, BXPLAM-, BXPCEN-, has metres on label): keep full code, output CODE LENGTH_IN_METRES e.g. BXPMIR-WARMGREY60 2.42
-- Benchtops slab (format COLOUR-DIMENSIONS, has pcs on label): keep full code, output CODE QTY e.g. ALPINE-3050900 2
-- Doors/panels (prefix ESC-, EMW-, OCO-, PMW- with door suffix, etc): keep full code, output CODE QTY e.g. PMW-BB 4
+- Benchtops M2M (prefix BXP-, has metres on label): keep full code, output CODE LENGTH e.g. BXPMIR-WARMGREY60 2.42
+- Benchtops slab (format COLOUR-DIMENSIONS, has pcs): keep full code, output CODE QTY e.g. ALPINE-3050900 2
+- Doors/panels (all other codes): keep full code, output CODE QTY e.g. PMW-BB 4
  
 EXCLUDE: DW605, TFK, TFK_, UP, F409, FLUPANEL.
 INCLUDE: UBMWHT, UBMWH, UBO60, UBO90.
@@ -135,47 +166,9 @@ INCLUDE: UBMWHT, UBMWH, UBO60, UBO90.
 No explanations. No headings. Just the list.`;
 }
  
-function getBenchtopPrompt(large = false) {
-  return getCabinetPrompt(large);
-}
+function processOutput(text) {
+  const excluded = new Set(['DW605','TFK','TFK_','UP','F409','FLUPANEL']);
  
-function filterCabinetOutput(text) {
-  const excluded = new Set(['DW605','TFK','TFK_','SFP','FP','BEP','TEP','UP','F409','FLUPANEL']);
-  const validCodePattern = /^[A-Z][A-Z0-9]+[A-Z0-9_]*$/;
- 
-  const lines = text.split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('*'))
-    .map(l => l.replace(/^[A-Z]{2,6}-/, ''))
-    .filter(l => {
-      const code = l.split(/\s+/)[0].toUpperCase();
-      return validCodePattern.test(code) && !excluded.has(code) && !code.includes('PANEL') && code.length >= 2;
-    })
-    .map(l => {
-      const parts = l.trim().split(/\s+/);
-      const code = parts[0].toUpperCase();
-      const qty = parts[1] && /^\d+$/.test(parts[1]) ? parseInt(parts[1]) : 1;
-      return `${code} ${qty}`;
-    });
- 
-  // Smart dedup
-  const seen = {};
-  let dupCount = 0;
-  lines.forEach(line => { if (seen[line]) dupCount++; seen[line] = true; });
-  const repeated = dupCount > lines.length * 0.3;
- 
-  const codeMap = {};
-  lines.forEach(line => {
-    const [code, qty] = line.split(' ');
-    const q = parseInt(qty);
-    if (repeated) { if (!codeMap[code]) codeMap[code] = q; }
-    else { codeMap[code] = (codeMap[code] || 0) + q; }
-  });
- 
-  return Object.entries(codeMap).map(([code, qty]) => `${code} ${qty}`).join('\n');
-}
- 
-function filterBenchtopOutput(text) {
   const lines = text.split('\n')
     .map(l => l.trim())
     .filter(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('*'))
@@ -183,19 +176,41 @@ function filterBenchtopOutput(text) {
       const parts = l.split(/\s+/);
       const code = parts[0].toUpperCase();
       const val = parseFloat(parts[1]);
-      if (!code || isNaN(val)) return null;
+      if (!code || !code.match(/^[A-Z][A-Z0-9\-]+$/) || isNaN(val)) return null;
+      if (excluded.has(code)) return null;
+      if (code.includes('PANEL') && !code.includes('BEP') && !code.includes('TEP')) return null;
       return `${code} ${val}`;
     })
     .filter(Boolean);
  
-  // For benchtops — sum values (M2M lengths or slab quantities)
+  // Smart dedup — detect if list was repeated
+  const seen = {};
+  let dupCount = 0;
+  lines.forEach(line => { if (seen[line]) dupCount++; seen[line] = true; });
+  const repeated = dupCount > lines.length * 0.3;
+ 
   const codeMap = {};
   lines.forEach(line => {
     const parts = line.split(' ');
     const code = parts[0];
     const val = parseFloat(parts[1]);
-    codeMap[code] = (codeMap[code] || 0) + val;
+    if (repeated) { if (!codeMap[code]) codeMap[code] = val; }
+    else { codeMap[code] = (codeMap[code] || 0) + val; }
   });
  
+  return Object.entries(codeMap).map(([code, val]) => `${code} ${val}`).join('\n');
+}
+ 
+function mergeResults(results) {
+  const codeMap = {};
+  results.forEach(result => {
+    const processed = processOutput(result);
+    processed.split('\n').filter(Boolean).forEach(line => {
+      const parts = line.split(' ');
+      const code = parts[0];
+      const val = parseFloat(parts[1]);
+      codeMap[code] = (codeMap[code] || 0) + val;
+    });
+  });
   return Object.entries(codeMap).map(([code, val]) => `${code} ${val}`).join('\n');
 }
