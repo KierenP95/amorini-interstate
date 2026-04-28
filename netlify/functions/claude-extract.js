@@ -90,11 +90,26 @@ No explanations, no headings, no extra text — just the list.`
       return { statusCode: 500, body: JSON.stringify({ error: data.error.message || JSON.stringify(data.error) }) };
     }
  
-    const text = data.content?.find(b => b.type === 'text')?.text?.trim();
+    let text = data.content?.find(b => b.type === 'text')?.text?.trim();
  
     if (!text) {
       return { statusCode: 500, body: JSON.stringify({ error: 'No text returned from Claude' }) };
     }
+ 
+    // Strip any comment lines (e.g. # token_count=689) and blank lines
+    // Also strip known non-cabinet codes that still slip through
+    const excluded = ['DW605', 'TFK', 'SFP', 'FP', 'BEP', 'TEP', 'UP', 'F409'];
+    text = text
+      .split('\n')
+      .filter(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return false;
+        if (trimmed.startsWith('#')) return false;
+        const code = trimmed.split(' ')[0].toUpperCase();
+        if (excluded.includes(code)) return false;
+        return true;
+      })
+      .join('\n');
  
     return {
       statusCode: 200,
