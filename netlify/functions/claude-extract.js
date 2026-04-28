@@ -34,16 +34,21 @@ exports.handler = async (event) => {
             },
             {
               type: 'text',
-              text: `You are reading an Amorini joinery plan from Bunnings Trade / Winner software. Extract only the cabinetry unit codes from the plan and elevation drawings.
+              text: `You are reading an Amorini joinery plan from Bunnings Trade / Winner software.
  
-Cabinet codes follow these patterns:
+This document contains multiple views of the same kitchen — plan views (top-down overhead view showing the room layout) and elevation views (side-on wall views). The SAME cabinets appear in BOTH view types.
+ 
+YOUR TASK: Extract cabinet codes from the PLAN VIEW pages ONLY (the top-down overhead drawings that show the full room layout from above). Ignore all elevation/wall views entirely.
+ 
+Plan view pages are identified by the label "Plan view:" in the page header. Elevation pages say "Elevation:" — skip these completely.
+ 
+Cabinet codes to include follow these patterns:
 - Base units: B30, B35, B40, B45, B50, B60, B80, B90, B100, B120, BRR45, BRR50, SB60, SB80 etc.
 - Wall/overhead units: W30S, W40S, W45S, W50S, W60S, W80S, W90S, W100S, W1005S, W1205S etc.
 - Tall/pantry units: P80Z, PRR45Z, PT60, EPT40 etc.
 - Drawer units: B45D2P, B453DP, UBO90 etc.
-- Specialised: DW605 (dishwasher cabinet), TFK (tall filler kit) etc.
  
-DO NOT include these — they are not cabinet boxes:
+DO NOT include any of these — they are not cabinet boxes:
 - SFP (scribe filler panel)
 - FP (filler panel)
 - BEP (bench end panel)
@@ -51,10 +56,10 @@ DO NOT include these — they are not cabinet boxes:
 - UP (underpanel)
 - F409 (fascia)
 - TFK (tall filler kit)
-- DW605 (dishwasher cavity — not a cabinet)
-- Any item described as a panel, fascia, filler, or appliance cavity
+- DW605 (dishwasher cavity)
+- Any code described as a panel, fascia, filler, or appliance cavity
  
-Count each occurrence of a code across ALL plan and elevation drawings in the document, but count each UNIQUE cabinet only ONCE — if the same cabinet appears in both a plan view and an elevation view, count it as 1, not 2.
+If there are multiple plan view pages (e.g. a main kitchen and a granny flat), list all cabinets from all plan views combined, but each unique cabinet position counted once.
  
 Return ONLY a plain text list, one item per line, in this exact format:
 CODE QTY
