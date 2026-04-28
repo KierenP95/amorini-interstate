@@ -1573,6 +1573,7 @@ async function extractFromPDF(input) {
           fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">chunk ${i+1}/${chunks.length}…</span>`;
         }
         const chunk = chunks[i];
+        console.log(`Chunk ${i+1} — type: ${typeof chunk}, base64 defined: ${!!chunk.base64}, length: ${chunk.base64 ? chunk.base64.length : 'N/A'}`);
         const response = await fetch('/.netlify/functions/claude-extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
