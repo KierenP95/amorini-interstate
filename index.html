@@ -1529,42 +1529,39 @@ async function extractFromPDF(input) {
       // Safe base64 conversion that handles large arrays
       const toBase64 = (bytes) => {
         let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+        const batchSize = 8192;
+        for (let i = 0; i < bytes.length; i += batchSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + batchSize));
         }
         return btoa(binary);
       };
 
-      try {
-        if (typeof PDFLib === 'undefined') throw new Error('pdf-lib not loaded');
-        const PDFDocument = PDFLib.PDFDocument || window.PDFDocument;
-        if (!PDFDocument) throw new Error('PDFDocument not found in pdf-lib');
-        const pdfDoc = await PDFDocument.load(uint8Array);
-        const totalPages = pdfDoc.getPageCount();
-        console.log(`PDF loaded — total pages: ${totalPages}, chunk size: ${CHUNK_SIZE}`);
+      const base64 = toBase64(uint8Array);
 
-        if (totalPages <= CHUNK_SIZE) {
-          chunks = [toBase64(uint8Array)];
-        } else {
-          fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">${totalPages} pages — splitting into chunks…</span>`;
-          for (let start = 0; start < totalPages; start += CHUNK_SIZE) {
-            const end = Math.min(start + CHUNK_SIZE, totalPages);
-            console.log(`Creating chunk pages ${start}-${end-1}`);
-            const subDoc = await PDFDocument.create();
-            const indices = Array.from({length: end - start}, (_, i) => start + i);
-            const copiedPages = await subDoc.copyPagesFrom(pdfDoc, indices);
-            console.log(`Copied ${copiedPages.length} pages`);
-            copiedPages.forEach(p => subDoc.addPage(p));
-            const subBytes = await subDoc.save();
-            console.log(`Chunk saved — ${subBytes.length} bytes`);
-            chunks.push(toBase64(subBytes));
+      // Get page count using pdf-lib if available, otherwise estimate
+      let totalPages = Math.ceil((uint8Array.length / 1024) / 3); // ~3KB per page estimate
+      try {
+        if (typeof PDFLib !== 'undefined') {
+          const PDFDocument = PDFLib.PDFDocument;
+          if (PDFDocument) {
+            const pdfDoc = await PDFDocument.load(uint8Array, { ignoreEncryption: true });
+            totalPages = pdfDoc.getPageCount();
           }
         }
-      } catch(splitErr) {
-        // Show the actual error so we can debug
-        fileItem.innerHTML = `<span style="color:var(--gold)">⚠</span><span>${file.name}</span><span style="color:var(--gold)">Split error: ${splitErr.message} — sending as single chunk</span>`;
-        chunks = [toBase64(uint8Array)];
+      } catch(e) { /* use estimate */ }
+
+      console.log(`PDF: ${totalPages} pages estimated`);
+
+      if (totalPages <= CHUNK_SIZE) {
+        chunks = [{ base64, startPage: 1, endPage: totalPages, total: totalPages }];
+      } else {
+        // Can't split the PDF bytes — instead send the full PDF multiple times
+        // with page range instructions so Claude focuses on different sections
+        fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">${totalPages} pages — processing in sections…</span>`;
+        for (let start = 1; start <= totalPages; start += CHUNK_SIZE) {
+          const end = Math.min(start + CHUNK_SIZE - 1, totalPages);
+          chunks.push({ base64, startPage: start, endPage: end, total: totalPages });
+        }
       }
 
       // Process each chunk
@@ -1575,10 +1572,16 @@ async function extractFromPDF(input) {
         if (chunks.length > 1) {
           fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">chunk ${i+1}/${chunks.length}…</span>`;
         }
+        const chunk = chunks[i];
         const response = await fetch('/.netlify/functions/claude-extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pdfBase64: chunks[i] })
+          body: JSON.stringify({
+            pdfBase64: chunk.base64 || chunk,
+            startPage: chunk.startPage,
+            endPage: chunk.endPage,
+            totalPages: chunk.total
+          })
         });
 
         const rawText = await response.text();
