@@ -25,55 +25,36 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
         max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
-            },
-            {
-              type: 'text',
-              text: `You are reading an Amorini joinery plan from Bunnings Trade / Winner software.
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'document',
+                source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
+              },
+              {
+                type: 'text',
+                text: `Extract cabinet codes from this PDF. Output ONLY a plain list — no words, no sentences, no headings, no explanations, no asterisks, no dashes as words.
  
-This document contains multiple views of the same kitchen — plan views (top-down overhead view showing the room layout) and elevation views (side-on wall views). The SAME cabinets appear in BOTH view types.
+This PDF is either:
+A) A Katana label sheet — one label per page, code at bottom with prefix like PMW-, OLOA-, PJMW-. Strip prefix, keep code. Count total pages per code.
+B) A joinery plan — read PLAN VIEW pages only (header says "Plan view:"), ignore Elevation pages.
  
-YOUR TASK: Extract cabinet codes from the PLAN VIEW pages ONLY (the top-down overhead drawings that show the full room layout from above). Ignore all elevation/wall views entirely.
+Each output line must be: CODE QTY
+Example output:
+SB100 1
+B45D2PT 3
+W35S 2
+W80S 1
  
-Plan view pages are identified by the label "Plan view:" in the page header. Elevation pages say "Elevation:" — skip these completely.
+EXCLUDE (do not list): DW605, TFK, TFK_, SFP, FP, BEP, TEP, UP, F409, FLUPANEL, UBMWHT, and anything with PANEL in the name.
  
-Cabinet codes to include follow these patterns:
-- Base units: B30, B35, B40, B45, B50, B60, B80, B90, B100, B120, BRR45, BRR50, SB60, SB80 etc.
-- Wall/overhead units: W30S, W40S, W45S, W50S, W60S, W80S, W90S, W100S, W1005S, W1205S etc.
-- Tall/pantry units: P80Z, PRR45Z, PT60, EPT40 etc.
-- Drawer units: B45D2P, B453DP, UBO90 etc.
- 
-DO NOT include any of these — they are not cabinet boxes:
-- SFP (scribe filler panel)
-- FP (filler panel)
-- BEP (bench end panel)
-- TEP (tall end panel)
-- UP (underpanel)
-- F409 (fascia)
-- TFK (tall filler kit)
-- DW605 (dishwasher cavity)
-- Any code described as a panel, fascia, filler, or appliance cavity
- 
-If there are multiple plan view pages (e.g. a main kitchen and a granny flat), list all cabinets from all plan views combined, but each unique cabinet position counted once.
- 
-Return ONLY a plain text list, one item per line, in this exact format:
-CODE QTY
- 
-Example:
-W30S 2
-W100S 1
-B45D2P 1
-PRR45Z 1
- 
-No explanations, no headings, no extra text — just the list.`
-            }
-          ]
-        }]
+Output the list now. Nothing else.`
+              }
+            ]
+          }
+        ]
       })
     });
  
@@ -83,7 +64,7 @@ No explanations, no headings, no extra text — just the list.`
     try {
       data = JSON.parse(rawText);
     } catch(e) {
-      return { statusCode: 500, body: JSON.stringify({ error: `Anthropic returned invalid JSON: ${rawText.substring(0, 200)}` }) };
+      return { statusCode: 500, body: JSON.stringify({ error: `Invalid JSON from Anthropic: ${rawText.substring(0, 200)}` }) };
     }
  
     if (data.error) {
@@ -96,25 +77,68 @@ No explanations, no headings, no extra text — just the list.`
       return { statusCode: 500, body: JSON.stringify({ error: 'No text returned from Claude' }) };
     }
  
-    // Strip any comment lines (e.g. # token_count=689) and blank lines
-    // Also strip known non-cabinet codes that still slip through
-    const excluded = ['DW605', 'TFK', 'SFP', 'FP', 'BEP', 'TEP', 'UP', 'F409'];
-    text = text
-      .split('\n')
-      .filter(line => {
-        const trimmed = line.trim();
-        if (!trimmed) return false;
-        if (trimmed.startsWith('#')) return false;
-        const code = trimmed.split(' ')[0].toUpperCase();
-        if (excluded.includes(code)) return false;
+    // Hard filter — only keep lines that look like valid cabinet codes
+    const excluded = new Set(['DW605','TFK','TFK_','SFP','FP','BEP','TEP','UP','F409','FLUPANEL','UBMWHT']);
+    const validCodePattern = /^[A-Z][A-Z0-9]+[A-Z0-9_]*$/;
+ 
+    const lines = text.split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0)
+      .filter(l => !l.startsWith('#'))
+      .filter(l => !l.startsWith('*'))
+      .map(l => {
+        // Strip finish prefixes like PMW-, OLOA-, PJMW- etc.
+        return l.replace(/^[A-Z]{2,6}-/, '');
+      })
+      .filter(l => {
+        const parts = l.trim().split(/\s+/);
+        const code = parts[0].toUpperCase();
+        if (!validCodePattern.test(code)) return false;
+        if (excluded.has(code)) return false;
+        if (code.includes('PANEL')) return false;
+        if (code.length < 2) return false;
         return true;
       })
+      .map(l => {
+        const parts = l.trim().split(/\s+/);
+        const code = parts[0].toUpperCase();
+        const qty = parts[1] && /^\d+$/.test(parts[1]) ? parseInt(parts[1]) : 1;
+        return `${code} ${qty}`;
+      });
+ 
+    // Detect if Claude has repeated the entire list (common hallucination)
+    // Strategy: count how many lines are exact duplicates
+    // If more than half the lines are duplicates, the list was repeated — deduplicate by keeping first occurrence
+    // Otherwise sum quantities (genuine multiple cabinets of same code)
+    const seen = {};
+    let duplicateCount = 0;
+    lines.forEach(line => {
+      if (seen[line]) duplicateCount++;
+      seen[line] = true;
+    });
+    const listWasRepeated = duplicateCount > lines.length * 0.3;
+ 
+    const codeMap = {};
+    lines.forEach(line => {
+      const [code, qty] = line.split(' ');
+      const q = parseInt(qty);
+      if (listWasRepeated) {
+        // Keep first occurrence only
+        if (!codeMap[code]) codeMap[code] = q;
+      } else {
+        // Sum quantities (genuine duplicates e.g. 3 labels of same cabinet)
+        codeMap[code] = (codeMap[code] || 0) + q;
+      }
+    });
+ 
+    const finalText = Object.entries(codeMap)
+      .map(([code, qty]) => `${code} ${qty}`)
       .join('\n');
  
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codes: text })
+      body: JSON.stringify({ codes: finalText })
     };
  
   } catch (err) {
