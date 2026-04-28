@@ -1156,6 +1156,7 @@ data-email="PLACEHOLDER_ANDREW@..."   → real email</code>
 </div><!-- /wrap -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────────────────
 const BOOKING_WEBHOOK = ''; // Set via UI input — saved to localStorage
@@ -1512,40 +1513,84 @@ async function extractFromPDF(input) {
     fileItems.appendChild(fileItem);
 
     try {
-      const base64 = await new Promise((resolve, reject) => {
+      const arrayBuffer = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
-        reader.readAsDataURL(file);
+        reader.readAsArrayBuffer(file);
       });
 
-      const response = await fetch('/.netlify/functions/claude-extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfBase64: base64 })
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // Split PDF into chunks of max 90 pages using pdf-lib
+      const CHUNK_SIZE = 90;
+      let chunks = [];
+
+      try {
+        const pdfDoc = await PDFLib.PDFDocument.load(uint8Array);
+        const totalPages = pdfDoc.getPageCount();
+
+        if (totalPages <= CHUNK_SIZE) {
+          // Small enough — send as one chunk
+          const base64 = btoa(String.fromCharCode(...uint8Array));
+          chunks = [base64];
+        } else {
+          // Split into chunks
+          fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">${totalPages} pages — splitting into chunks…</span>`;
+          for (let start = 0; start < totalPages; start += CHUNK_SIZE) {
+            const end = Math.min(start + CHUNK_SIZE, totalPages);
+            const subDoc = await PDFLib.PDFDocument.create();
+            const indices = Array.from({length: end - start}, (_, i) => start + i);
+            const copiedPages = await subDoc.copyPagesFrom(pdfDoc, indices);
+            copiedPages.forEach(p => subDoc.addPage(p));
+            const subBytes = await subDoc.save();
+            const base64 = btoa(String.fromCharCode(...subBytes));
+            chunks.push(base64);
+          }
+        }
+      } catch(splitErr) {
+        // Fallback — send whole file if pdf-lib fails
+        const base64 = btoa(String.fromCharCode(...uint8Array));
+        chunks = [base64];
+      }
+
+      // Process each chunk
+      let chunkCodes = {};
+      for (let i = 0; i < chunks.length; i++) {
+        if (chunks.length > 1) {
+          fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">chunk ${i+1}/${chunks.length}…</span>`;
+        }
+        const response = await fetch('/.netlify/functions/claude-extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdfBase64: chunks[i] })
+        });
+
+        const rawText = await response.text();
+        if (!rawText || rawText.trim() === '') throw new Error('Empty response');
+        let data;
+        try { data = JSON.parse(rawText); } catch(e) { throw new Error('Invalid response'); }
+        if (data.error) throw new Error(data.error);
+
+        const text = data.codes;
+        if (text) {
+          text.split('\n').filter(l => l.trim()).forEach(line => {
+            const parts = line.trim().split(/\s+/);
+            const code = parts[0].toUpperCase();
+            const val = parseFloat(parts[1]) || 1;
+            chunkCodes[code] = (chunkCodes[code] || 0) + val;
+          });
+        }
+      }
+
+      // Merge chunk results into allCodes
+      Object.entries(chunkCodes).forEach(([code, val]) => {
+        allCodes[code] = (allCodes[code] || 0) + val;
       });
 
-      const rawText = await response.text();
-      if (!rawText || rawText.trim() === '') throw new Error('Empty response');
-
-      let data;
-      try { data = JSON.parse(rawText); } catch(e) { throw new Error('Invalid response'); }
-      if (data.error) throw new Error(data.error);
-
-      const text = data.codes;
-      if (!text) throw new Error('No codes found');
-
-      // Merge codes from this PDF into allCodes
-      const lines = text.split('\n').filter(l => l.trim());
-      lines.forEach(line => {
-        const parts = line.trim().split(/\s+/);
-        const code = parts[0].toUpperCase();
-        const qty = parts[1] ? parseInt(parts[1]) : 1;
-        allCodes[code] = (allCodes[code] || 0) + qty;
-      });
-
-      totalExtracted += lines.length;
-      fileItem.innerHTML = `<span style="color:var(--green)">✓</span><span>${file.name}</span><span style="color:var(--text-dim)">${lines.length} code${lines.length !== 1 ? 's' : ''}</span>`;
+      const lineCount = Object.keys(chunkCodes).length;
+      totalExtracted += lineCount;
+      fileItem.innerHTML = `<span style="color:var(--green)">✓</span><span>${file.name}</span><span style="color:var(--text-dim)">${lineCount} code${lineCount !== 1 ? 's' : ''}</span>`;
       uploadedPDFs.push(file.name);
 
     } catch(err) {
