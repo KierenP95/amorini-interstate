@@ -827,6 +827,21 @@ textarea {
             <div id="cbmCabinetCount" style="font-size:11px; color:var(--text-muted); margin-bottom:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;"></div>
             <div class="cbm-breakdown" id="cbmBreakdown"></div>
           </div>
+
+          <!-- Benchtop Qty -->
+          <div class="field" style="margin-top:16px;">
+            <label>Benchtop quantity <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);">— coming soon, data pending</span></label>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <input type="number" id="benchtopQty" min="0" value="0" style="width:100px;" disabled>
+              <span style="font-size:11px; color:var(--text-dim);">CBM calculation will be added once benchtop dimensions are loaded</span>
+            </div>
+          </div>
+
+          <!-- CBM Notes -->
+          <div class="field" style="margin-top:8px;">
+            <label>Delivery notes <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);">— access, stairs, floor level etc.</span></label>
+            <textarea id="cbmNotes" placeholder="e.g. Master bedroom upstairs, narrow hallway, no lift access on site…" style="min-height:72px;"></textarea>
+          </div>
         </div>
       </div>
 
@@ -912,21 +927,21 @@ textarea {
         <div class="card-body">
           <div class="carrier-grid">
             <div class="carrier-opt">
-              <input type="radio" name="carrier" id="carr-martin" value="Martin — Ability Removals" data-email="martindollard@bigpond.com">
+              <input type="radio" name="carrier" id="carr-martin" value="Martin — Ability Removals" data-email="PLACEHOLDER_MARTIN@abilityremovalswa.com.au">
               <label for="carr-martin">
                 <span class="carrier-name">Martin</span>
                 <span class="carrier-contact">Ability Removals</span>
               </label>
             </div>
             <div class="carrier-opt">
-              <input type="radio" name="carrier" id="carr-jackman" value="Sam Jackman — Jackmans Transport" data-email="sam@jft.com.au">
+              <input type="radio" name="carrier" id="carr-jackman" value="Sam Jackman — Jackmans Transport" data-email="PLACEHOLDER_SAM@jackmanstransport.com.au">
               <label for="carr-jackman">
                 <span class="carrier-name">Jackmans</span>
                 <span class="carrier-contact">Sam Jackman</span>
               </label>
             </div>
             <div class="carrier-opt">
-              <input type="radio" name="carrier" id="carr-harrington" value="Andrew — Harringtons Removals" data-email="harringtonremovals@bigpond.com">
+              <input type="radio" name="carrier" id="carr-harrington" value="Andrew — Harringtons Removals" data-email="PLACEHOLDER_ANDREW@harringtonsremovals.com.au">
               <label for="carr-harrington">
                 <span class="carrier-name">Harringtons</span>
                 <span class="carrier-contact">Andrew</span>
@@ -1607,6 +1622,7 @@ function clearCodes() {
   document.getElementById('manualCodesField').style.display = 'block';
   document.getElementById('cbmResult').className = 'cbm-result';
   document.getElementById('cbmCabinetCount').textContent = '';
+  document.getElementById('cbmNotes').value = '';
   document.getElementById('pdfUploadZone').style.borderColor = '';
   document.getElementById('pdfStatus').style.display = 'none';
   document.getElementById('pdfFileList').style.display = 'none';
@@ -1629,6 +1645,7 @@ function buildEmailBody() {
   const freight      = document.querySelector('input[name="freight"]:checked').value;
   const cbm          = lastCBM || '(not yet calculated)';
   const notes        = document.getElementById('notes').value.trim();
+  const cbmNotes     = document.getElementById('cbmNotes').value.trim();
   const carrier      = document.querySelector('input[name="carrier"]:checked');
   const carrierName  = carrier ? carrier.value : '—';
 
@@ -1701,7 +1718,8 @@ function buildEmailBody() {
       <td style="padding:8px 14px; font-weight:600; ${notes ? 'border-bottom:1px solid #e0e0e0;' : ''}">Freight Type</td>
       <td style="padding:8px 14px; ${notes ? 'border-bottom:1px solid #e0e0e0;' : ''}">${freight}</td>
     </tr>
-    ${notes ? `<tr style="background:#f9f9f9;"><td style="padding:8px 14px; font-weight:600;">Notes</td><td style="padding:8px 14px;">${notes}</td></tr>` : ''}
+    ${notes ? `<tr style="background:#f9f9f9;"><td style="padding:8px 14px; font-weight:600; border-bottom:1px solid #e0e0e0;">Notes</td><td style="padding:8px 14px; border-bottom:1px solid #e0e0e0;">${notes}</td></tr>` : ''}
+    ${cbmNotes ? `<tr${notes ? '' : ' style="background:#f9f9f9;"'}><td style="padding:8px 14px; font-weight:600;">Delivery Notes</td><td style="padding:8px 14px;">${cbmNotes}</td></tr>` : ''}
   </table>
 
   <p>Please confirm availability and rates at your earliest convenience.</p>
@@ -1801,6 +1819,8 @@ async function sendBooking() {
     carrier:         carrier.value,
     carrierEmail:    carrier.dataset.email,
     notes:           document.getElementById('notes').value.trim(),
+    cbmNotes:        document.getElementById('cbmNotes').value.trim(),
+    benchtopQty:     document.getElementById('benchtopQty').value || '0',
     sentFrom:        'bookings@amorinilogistics.com.au',
     emailBody:       buildEmailBody(),
     submittedAt:     new Date().toISOString()
