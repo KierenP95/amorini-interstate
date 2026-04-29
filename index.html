@@ -1569,19 +1569,17 @@ async function extractFromPDF(input) {
       console.log(`Processing ${chunks.length} chunk(s) for ${file.name}`);
       for (let i = 0; i < chunks.length; i++) {
         console.log(`Chunk ${i+1}/${chunks.length} — base64 length: ${chunks[i].length}`);
+
         if (chunks.length > 1) {
           fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">chunk ${i+1}/${chunks.length}…</span>`;
         }
         const chunk = chunks[i];
         console.log(`Chunk ${i+1} — type: ${typeof chunk}, base64 defined: ${!!chunk.base64}, length: ${chunk.base64 ? chunk.base64.length : 'N/A'}`);
-        const response = await fetch('/.netlify/functions/claude-extract', {
+        const response = await fetch('https://amorini-pdf-server-production.up.railway.app/extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            pdfBase64: chunk.base64 || chunk,
-            startPage: chunk.startPage,
-            endPage: chunk.endPage,
-            totalPages: chunk.total
+            pdfBase64: chunk.base64 || chunk
           })
         });
 
