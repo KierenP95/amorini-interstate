@@ -1360,7 +1360,7 @@ function loadLibrary(input) {
   const reader = new FileReader();
 
   if (name.endsWith('.csv')) {
-    reader.onload = e => parseCSV(e.target.result);
+    reader.onload = e => { parseCSV(e.target.result); input.value = ''; };
     reader.readAsText(file);
   } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
     reader.onload = e => {
@@ -1369,6 +1369,7 @@ function loadLibrary(input) {
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
       const headers = rows[0].map(h => h.toString().trim().toLowerCase());
       processRows(rows.slice(1), headers);
+      input.value = '';
     };
     reader.readAsArrayBuffer(file);
   }
