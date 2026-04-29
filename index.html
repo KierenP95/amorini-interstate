@@ -1621,7 +1621,10 @@ async function extractFromPDF(input) {
 
   Object.entries(allCodes).forEach(([code, qty]) => {
     const entry = library[code];
-    if (!entry) {
+    // BXP* and DEK* are always benchtops even if not in library
+    if (code.startsWith('BXP') || code.startsWith('DEK')) {
+      benchtopCodes.push(`${code} ${qty}`);
+    } else if (!entry) {
       unknownCodes.push(`${code} ${qty}`);
     } else if (entry.type === 'door') {
       doorCodes.push(`${code} ${qty}`);
@@ -1880,23 +1883,36 @@ function calcCBM() {
   updateEmailPreview();
 }
 
-// ── BENCHTOP CBM ──────────────────────────────────────────────────────────────
 function calcBenchtopCBM() {
   const rows = document.getElementById('benchtopRows');
   if (!rows) return 0;
   let total = 0;
   rows.querySelectorAll('.qty-row').forEach(row => {
     const code = row.dataset.code;
+    const val = parseFloat(row.querySelector('.qty-num').value) || 0;
+    if (!val) return;
+
     const entry = library[code];
-    if (!entry) return;
-    const qtyOrLength = parseFloat(row.querySelector('.qty-num').value) || 0;
-    if (entry.type === 'benchtop_slab') {
-      total += (entry.l / 1000) * (entry.w / 1000) * (entry.h / 1000) * qtyOrLength;
-    } else if (entry.type === 'benchtop_m2m') {
-      // qtyOrLength is length in metres from label
-      total += qtyOrLength * (entry.depth / 1000) * (entry.thickness / 1000);
+    if (entry) {
+      // Library entry exists — use it
+      if (entry.type === 'benchtop_slab') {
+        total += (entry.l / 1000) * (entry.w / 1000) * (entry.h / 1000) * val;
+      } else if (entry.type === 'benchtop_m2m') {
+        total += val * (entry.depth / 1000) * (entry.thickness / 1000);
+      }
+    } else if (isBenchtopM2M(code)) {
+      // BXP* code not in library — derive dimensions from code name
+      const dims = getBenchtopDimensions(code);
+      if (dims.width) {
+        total += val * (dims.width / 1000) * (dims.thickness / 1000);
+      }
     }
   });
+
+  // Update the benchtop CBM display
+  const el = document.getElementById('benchtopCBMVal');
+  if (el) el.textContent = total.toFixed(3);
+
   return total;
 }
 
@@ -1971,36 +1987,78 @@ async function extractBenchtopsFromPDF(input) {
   input.value = '';
 }
 
+function isBenchtopM2M(code) {
+  // BXP* codes are always linear metre items
+  // Detect from code prefix — don't rely on library
+  if (code.startsWith('BXP')) return true;
+  // Library fallback
+  const entry = library[code];
+  return entry && entry.type === 'benchtop_m2m';
+}
+
+function getBenchtopDimensions(code) {
+  // Parse width from code suffix (last digits) and thickness from prefix
+  // e.g. BXPCEN-FIRESTN695 -> width=695mm, thickness=20mm (compact laminate)
+  // e.g. BXPLAMVOLCBLK60 -> width=60mm, thickness=40mm (laminate)
+  // e.g. BXPMIR-WARMGREY60 -> width=60mm, thickness=20mm (mirostone)
+  // e.g. BXPDKT-SOMETHING600 -> width=600mm, thickness=40mm (dekton)
+
+  // Try library first
+  const entry = library[code];
+  if (entry && entry.type === 'benchtop_m2m') {
+    return { width: entry.depth, thickness: entry.thickness };
+  }
+
+  // Parse width from trailing digits in code
+  const widthMatch = code.match(/(\d+)$/);
+  const width = widthMatch ? parseInt(widthMatch[1]) : null;
+
+  // Derive thickness from prefix
+  let thickness = 20; // default
+  if (code.startsWith('BXPLAM')) thickness = 40;
+  else if (code.startsWith('BXPDKT')) thickness = 40;
+  else if (code.startsWith('BXPMIR')) thickness = 20;
+  else if (code.startsWith('BXPCEN')) thickness = 20;
+
+  return { width, thickness };
+}
+
 function populateBenchtopEditor(lines) {
   const editor = document.getElementById('benchtopQtyEditor');
   const rowsEl = document.getElementById('benchtopRows');
-  rowsEl.innerHTML = '';
+  // Don't clear — append to existing rows so multiple PDFs stack
+  // But do clear on first call per session (handled by clearCodes)
 
   lines.forEach(line => {
     const parts = line.trim().split(/\s+/);
     const code = parts[0].toUpperCase();
     const val = parseFloat(parts[1]) || 1;
-    const entry = library[code];
-    const isM2M = entry && entry.type === 'benchtop_m2m';
+    const isM2M = isBenchtopM2M(code);
     rowsEl.appendChild(makeBenchtopRow(code, val, isM2M));
   });
 
   editor.style.display = 'block';
   document.getElementById('benchtopCBMLine').style.display = 'block';
+  const noBench = document.getElementById('noBenchtops');
+  if (noBench) noBench.style.display = 'none';
 }
 
 function makeBenchtopRow(code, val, isM2M) {
-  const inLib = library[code] !== undefined;
+  // isM2M can be passed in or derived from code
+  if (isM2M === undefined) isM2M = isBenchtopM2M(code);
+  const inLib = library[code] !== undefined || code.startsWith('BXP') || code.startsWith('DEK');
+  const dims = getBenchtopDimensions(code);
+  const dimHint = isM2M && dims.width ? ` — ${dims.width}mm wide, ${dims.thickness}mm thick` : '';
   const div = document.createElement('div');
   div.className = 'qty-row';
   div.dataset.code = code;
   const label = isM2M ? 'Length (m)' : 'Qty';
   div.innerHTML = `
-    <span class="qty-code ${!inLib ? 'missing' : ''}" title="${!inLib ? 'Not in library' : ''}">${code}${!inLib ? ' ⚠' : ''}</span>
+    <span class="qty-code" title="${dimHint}">${code}</span>
     <span style="font-size:10px; color:var(--text-dim); flex-shrink:0;">${label}</span>
     <div class="qty-controls">
       <button class="qty-btn" onclick="adjustBenchtopQty(this, ${isM2M ? -0.1 : -1}, ${isM2M})">−</button>
-      <input class="qty-num" type="number" value="${val}" min="0" step="${isM2M ? '0.01' : '1'}" style="width:44px;">
+      <input class="qty-num" type="number" value="${val}" min="0" step="${isM2M ? '0.001' : '1'}" style="width:54px;">
       <button class="qty-btn" onclick="adjustBenchtopQty(this, ${isM2M ? 0.1 : 1}, ${isM2M})">+</button>
     </div>
     <button class="qty-delete" onclick="this.closest('.qty-row').remove(); if(document.getElementById('cbmResult').classList.contains('show')) calcCBM();" title="Remove">×</button>
