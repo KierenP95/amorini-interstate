@@ -1377,8 +1377,10 @@ function loadLibrary(input) {
 
 function parseCSV(text) {
   const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-  const rows = lines.slice(1).map(l => l.split(',').map(c => c.trim()));
+  // Auto-detect delimiter — tab or comma
+  const delimiter = lines[0].includes('\t') ? '\t' : ',';
+  const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
+  const rows = lines.slice(1).map(l => l.split(delimiter).map(c => c.trim()));
   processRows(rows, headers);
 }
 
@@ -1387,48 +1389,63 @@ function processRows(rows, headers) {
   let skipped = 0;
 
   // Detect format by headers
-  const isMaster = headers && headers.includes('type') && headers.includes('category');
-  const isBenchtop = !isMaster && headers && (headers.includes('length_mm') || headers.includes('thickness_mm'));
+  // Benchtop CSV has: code, category, type, length_mm, depth_mm, thickness_mm
+  // Master library has: code, width, height, depth, type, category (numeric columns before type)
+  const hasBenchtopCols = headers.includes('depth_mm') || headers.includes('thickness_mm') || headers.includes('length_mm');
+  const isBenchtopStandalone = hasBenchtopCols;
+  const isMaster = !hasBenchtopCols && headers.includes('type');
+
+  // Column indices for benchtop format
+  const idxCode = Math.max(headers.indexOf('code'), 0);
+  const idxType = headers.indexOf('type');
+  const idxLength = headers.indexOf('length_mm');
+  const idxDepth = headers.indexOf('depth_mm');
+  const idxThickness = headers.indexOf('thickness_mm');
 
   rows.forEach(r => {
-    const code = (r[0] || '').toString().trim().toUpperCase();
+    const code = (r[idxCode] || '').toString().trim().toUpperCase();
     if (!code) return;
 
-    if (isMaster) {
+    if (isBenchtopStandalone) {
+      // Benchtop CSV: Code, Category, Type, Length_mm, Depth_mm, Thickness_mm
+      const typeVal = (idxType >= 0 ? r[idxType] || '' : '').toString().trim().toUpperCase();
+      const length = idxLength >= 0 ? parseFloat(r[idxLength]) : NaN;
+      const depth = idxDepth >= 0 ? parseFloat(r[idxDepth]) : NaN;
+      const thickness = idxThickness >= 0 ? parseFloat(r[idxThickness]) : 20;
+
+      if (typeVal === 'M2M') {
+        if (!isNaN(depth)) {
+          library[code] = { type: 'benchtop_m2m', depth, thickness: isNaN(thickness) ? 20 : thickness };
+          count++;
+        } else skipped++;
+      } else if (typeVal === 'SLAB') {
+        if (!isNaN(length) && !isNaN(depth)) {
+          library[code] = { type: 'benchtop_slab', l: length, w: depth, h: isNaN(thickness) ? 20 : thickness };
+          count++;
+        } else skipped++;
+      } else skipped++;
+
+    } else if (isMaster) {
       // Master library format: Code, Width, Height, Depth, Type, Category
       const w = parseFloat(r[1]), h = parseFloat(r[2]), d = parseFloat(r[3]);
       const type = (r[4] || '').toString().trim().toLowerCase();
-      if (!code || isNaN(h)) { skipped++; return; }
+      if (isNaN(h)) { skipped++; return; }
 
       if (type === 'benchtop_m2m') {
-        // Width=depth, Height=thickness, Depth=0
         library[code] = { type: 'benchtop_m2m', depth: w, thickness: h };
       } else if (type === 'benchtop_slab') {
         library[code] = { type: 'benchtop_slab', l: w, w: h, h: d };
       } else if (type === 'door') {
         library[code] = { type: 'door', l: w, w: h, h: d };
       } else {
-        // Cabinet
         library[code] = { l: w, w: h, h: d };
       }
       count++;
-    } else if (isBenchtop) {
-      const type = (r[2] || '').toString().trim().toUpperCase();
-      const length = r[3] === 'M2M' ? 'M2M' : parseFloat(r[3]);
-      const depth = parseFloat(r[4]);
-      const thickness = parseFloat(r[5]) || 20;
-      if (code && !isNaN(depth)) {
-        if (type === 'M2M' || r[3] === 'M2M') {
-          library[code] = { type: 'benchtop_m2m', depth, thickness };
-        } else if (!isNaN(length)) {
-          library[code] = { type: 'benchtop_slab', l: length, w: depth, h: thickness };
-        }
-        count++;
-      } else skipped++;
+
     } else {
-      // Cabinet or door format: Code, Width, Height, Depth
+      // Plain cabinet format: Code, Width, Height, Depth
       const l = parseFloat(r[1]), w = parseFloat(r[2]), h = parseFloat(r[3]);
-      if (code && !isNaN(l) && !isNaN(w) && !isNaN(h)) {
+      if (!isNaN(l) && !isNaN(w) && !isNaN(h)) {
         library[code] = { l, w, h };
         count++;
       }
