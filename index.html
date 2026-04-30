@@ -1522,8 +1522,15 @@ async function extractFromPDF(input) {
   let allCodes = {}; // code -> qty, merged across all PDFs
   let totalExtracted = 0;
   let errors = [];
+  let pdfIndex = 0;
 
   for (const file of files) {
+    // Add a delay between PDFs to avoid rate limit conflicts on Railway
+    if (pdfIndex > 0) {
+      setStatus(`⏳ Waiting before processing ${file.name}…`, 'gold');
+      await new Promise(r => setTimeout(r, 10000));
+    }
+    pdfIndex++;
     // Add file to list with pending status
     const fileItem = document.createElement('div');
     fileItem.style.cssText = 'font-size:11px; padding:4px 0; color:var(--text-muted); display:flex; gap:8px; align-items:center;';
