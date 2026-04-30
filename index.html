@@ -764,8 +764,8 @@ textarea {
             <div class="lib-dot" id="libDot"></div>
             <span id="libStatusText">No library loaded — upload your cabinet dimensions file</span>
           </div>
-          <div class="upload-zone">
-            <input type="file" id="libFile" accept=".csv,.xlsx,.xls" onchange="loadLibrary(this)">
+          <div class="upload-zone" onclick="document.getElementById('libFile').click()">
+            <input type="file" id="libFile" accept=".csv,.xlsx,.xls" onchange="loadLibrary(this)" style="display:none;">
             <p><strong>Click to upload</strong> CSV or Excel file<br>Columns: Code, Length, Width, Height (mm)</p>
           </div>
           <div style="display:flex; gap:8px;">
@@ -791,8 +791,8 @@ textarea {
         <div class="card-body">
           <div class="field">
             <label>Upload job PDF <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);">— AI will extract cabinet codes automatically</span></label>
-            <div class="upload-zone" id="pdfUploadZone">
-              <input type="file" id="pdfFile" accept=".pdf" multiple onchange="extractFromPDF(this)">
+            <div class="upload-zone" id="pdfUploadZone" onclick="document.getElementById('pdfFile').click()">
+              <input type="file" id="pdfFile" accept=".pdf" multiple onchange="extractFromPDF(this)" style="display:none;">
               <p><strong>Click to upload</strong> Katana label PDF(s)<br>Cabinets, benchtops &amp; doors extracted automatically</p>
             </div>
             <div id="pdfStatus" style="display:none; font-size:11px; padding:7px 11px; border-radius:var(--r); margin-top:8px; align-items:center; gap:8px;"></div>
