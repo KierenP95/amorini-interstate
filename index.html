@@ -754,6 +754,22 @@ textarea {
 }
 .qty-delete:hover { color: var(--red); }
 
+/* ─── BUFFER BUTTONS ─── */
+.buf-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.buf-btn:hover { border-color: var(--accent); color: var(--text); }
+.buf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -782,23 +798,31 @@ textarea {
 <div class="wrap">
 
   <!-- WEBHOOK CONFIG ROW -->
-  <div class="card span2" style="margin-bottom:24px;">
-    <div class="webhook-row">
-      <div class="wh-field">
-        <label>Make Webhook URL</label>
-        <input type="text" id="webhookInput" placeholder="https://hook.eu1.make.com/xxxxxxxxxxxxxxxx" oninput="onWebhookInput(this.value)">
-      </div>
-      <button class="btn btn-ghost" onclick="saveWebhook()">Save</button>
+  <div class="span2" style="margin-bottom:24px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0;">
+      <button class="btn btn-ghost" onclick="toggleConfig()" id="configToggleBtn" style="font-size:11px; padding:6px 14px; display:flex; align-items:center; gap:7px;">
+        <svg id="configChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" style="transition:transform 0.2s;"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Configuration
+      </button>
     </div>
-    <div class="webhook-row" style="border-top: 1px solid var(--border);">
-      <div class="wh-field">
-        <label>Google Maps API Key</label>
-        <input type="text" id="mapsApiKey" placeholder="AIzaSy…" oninput="onMapsKeyInput(this.value)">
+    <div id="configPanel" class="card" style="display:none; margin-top:8px;">
+      <div class="webhook-row">
+        <div class="wh-field">
+          <label>Make Webhook URL</label>
+          <input type="text" id="webhookInput" placeholder="https://hook.eu1.make.com/xxxxxxxxxxxxxxxx" oninput="onWebhookInput(this.value)">
+        </div>
+        <button class="btn btn-ghost" onclick="saveWebhook()">Save</button>
       </div>
-      <button class="btn btn-ghost" onclick="saveMapsKey()">Save</button>
-    </div>
-    <div style="padding:10px 20px; font-size:11px; color:var(--text-dim);">
-      Both keys are saved in your browser only.
+      <div class="webhook-row" style="border-top: 1px solid var(--border);">
+        <div class="wh-field">
+          <label>Google Maps API Key</label>
+          <input type="text" id="mapsApiKey" placeholder="AIzaSy…" oninput="onMapsKeyInput(this.value)">
+        </div>
+        <button class="btn btn-ghost" onclick="saveMapsKey()">Save</button>
+      </div>
+      <div style="padding:10px 20px; font-size:11px; color:var(--text-dim);">
+        Both keys are saved in your browser only.
+      </div>
     </div>
   </div>
 
@@ -865,10 +889,16 @@ textarea {
           <!-- Quantity Editor -->
           <div id="qtyEditor" style="display:none; margin-bottom:14px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-              <label style="margin:0;">Review &amp; adjust quantities</label>
+              <button onclick="toggleSection('qtyRows','qtyChevron','qtyRowsWrap')" style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;padding:0;">
+                <label style="margin:0;cursor:pointer;">Cabinets</label>
+                <span id="qtyCountPill" style="font-size:10px;font-weight:600;background:var(--accent);color:#fff;border-radius:10px;padding:1px 7px;display:none;"></span>
+                <svg id="qtyChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" style="transition:transform 0.2s;transform:rotate(180deg);"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
               <button class="btn btn-ghost" onclick="addCodeRow()" style="font-size:10px;padding:4px 10px;">+ Add code</button>
             </div>
-            <div id="qtyRows"></div>
+            <div id="qtyRowsWrap">
+              <div id="qtyRows"></div>
+            </div>
           </div>
 
           <!-- Manual textarea -->
@@ -886,6 +916,17 @@ textarea {
             <div class="cbm-unit">cubic metres</div>
             <div id="cbmCabinetCount" style="font-size:11px; color:var(--text-muted); margin-bottom:10px; font-weight:500; letter-spacing:0.04em; text-transform:uppercase;"></div>
             <div class="cbm-breakdown" id="cbmBreakdown"></div>
+            <!-- Buffer -->
+            <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span style="font-size:11px; color:var(--text-muted); font-weight:500;">Buffer</span>
+              <div style="display:flex; gap:5px;">
+                <button onclick="setBuffer(0)"  id="buf0"  class="buf-btn active" style="">None</button>
+                <button onclick="setBuffer(5)"  id="buf5"  class="buf-btn">+5%</button>
+                <button onclick="setBuffer(10)" id="buf10" class="buf-btn">+10%</button>
+                <button onclick="setBuffer(15)" id="buf15" class="buf-btn">+15%</button>
+              </div>
+              <span id="cbmBuffered" style="font-size:12px; color:var(--text-muted); margin-left:4px;"></span>
+            </div>
           </div>
 
           <!-- Extras Section -->
@@ -894,11 +935,17 @@ textarea {
             <!-- Benchtops -->
             <div style="margin-bottom:14px;">
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <label style="margin:0; color:var(--text-muted);">Benchtops</label>
+                <button onclick="toggleSection('benchtopRows','btChevron','benchtopRowsWrap')" style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;padding:0;">
+                  <label style="margin:0;color:var(--text-muted);cursor:pointer;">Benchtops</label>
+                  <span id="btCountPill" style="font-size:10px;font-weight:600;background:var(--accent);color:#fff;border-radius:10px;padding:1px 7px;display:none;"></span>
+                  <svg id="btChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" style="transition:transform 0.2s;transform:rotate(180deg);"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
                 <button class="btn btn-ghost" onclick="addBenchtopRow()" style="font-size:10px;padding:3px 8px;">+ Add manually</button>
               </div>
               <div id="benchtopQtyEditor" style="display:none; margin-bottom:6px;">
-                <div id="benchtopRows"></div>
+                <div id="benchtopRowsWrap">
+                  <div id="benchtopRows"></div>
+                </div>
               </div>
               <div id="benchtopCBMLine" style="display:none; font-size:11px; color:var(--text-muted);">
                 Benchtop CBM: <span id="benchtopCBMVal" style="color:var(--text); font-weight:600; font-family:'DM Mono',monospace;">0.000</span> m³
@@ -909,11 +956,17 @@ textarea {
             <!-- Doors -->
             <div style="border-top:1px solid var(--border); padding-top:14px;">
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <label style="margin:0; color:var(--text-muted);">Doors &amp; Panels</label>
+                <button onclick="toggleSection('doorRows','doorChevron','doorRowsWrap')" style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;padding:0;">
+                  <label style="margin:0;color:var(--text-muted);cursor:pointer;">Doors &amp; Panels</label>
+                  <span id="doorCountPill" style="font-size:10px;font-weight:600;background:var(--accent);color:#fff;border-radius:10px;padding:1px 7px;display:none;"></span>
+                  <svg id="doorChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" style="transition:transform 0.2s;transform:rotate(180deg);"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
                 <button class="btn btn-ghost" onclick="addDoorRow()" style="font-size:10px;padding:3px 8px;">+ Add manually</button>
               </div>
               <div id="doorQtyEditor" style="display:none; margin-bottom:6px;">
-                <div id="doorRows"></div>
+                <div id="doorRowsWrap">
+                  <div id="doorRows"></div>
+                </div>
               </div>
               <div id="doorCBMLine" style="display:none; font-size:11px; color:var(--text-muted);">
                 Door/Panel CBM: <span id="doorCBMVal" style="color:var(--text); font-weight:600; font-family:'DM Mono',monospace;">0.000</span> m³
@@ -1212,6 +1265,7 @@ let lastCBM = null;
 let lastCabinetCount = null;
 let autocomplete = null;
 let uploadedPDFs = []; // Track uploaded PDF names
+let cbmBuffer = 0; // buffer % (0, 5, 10, 15)
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -1751,6 +1805,7 @@ function populateDoorEditor(lines) {
 
   editor.style.display = 'block';
   if (noDoors) noDoors.style.display = 'none';
+  updateCountPill('doorCountPill', 'doorRows');
 }
 
 function makeDoorRow(code, qty) {
@@ -1857,9 +1912,8 @@ function calcCBM() {
   const combinedTotal = cabinetTotal + benchtopCBM + doorCBM + otherCBM;
 
   const totalCabinets = items.reduce((sum, { qty }) => sum + qty, 0);
-  lastCBM = combinedTotal.toFixed(3);
   lastCabinetCount = totalCabinets;
-  document.getElementById('cbmNum').textContent = lastCBM;
+  // cbmNum and lastCBM set after buffer is applied below
 
   const parts = [`${totalCabinets} cabinet${totalCabinets !== 1 ? 's' : ''}`];
   if (benchtopCBM > 0) parts.push(`benchtops ${benchtopCBM.toFixed(3)} m³`);
@@ -1887,6 +1941,23 @@ function calcCBM() {
   });
 
   document.getElementById('cbmBreakdown').innerHTML = html;
+
+  // Apply buffer
+  const buffered = combinedTotal * (1 + cbmBuffer / 100);
+  lastCBM = buffered.toFixed(3);
+  document.getElementById('cbmNum').textContent = lastCBM;
+  const buffEl = document.getElementById('cbmBuffered');
+  if (cbmBuffer > 0) {
+    buffEl.textContent = '(' + combinedTotal.toFixed(3) + ' base + ' + cbmBuffer + '% = ' + lastCBM + ' m³)';
+  } else {
+    buffEl.textContent = '';
+  }
+
+  // Update count pills
+  updateCountPill('qtyCountPill', 'qtyRows');
+  updateCountPill('btCountPill', 'benchtopRows');
+  updateCountPill('doorCountPill', 'doorRows');
+
   document.getElementById('cbmResult').className = 'cbm-result show';
   updateEmailPreview();
 }
@@ -2032,6 +2103,10 @@ function clearCodes() {
   uploadedPDFs = [];
   lastCBM = null;
   lastCabinetCount = null;
+  document.getElementById('cbmBuffered').textContent = '';
+  updateCountPill('qtyCountPill','qtyRows');
+  updateCountPill('btCountPill','benchtopRows');
+  updateCountPill('doorCountPill','doorRows');
 }
 
 // ── EMAIL PREVIEW ─────────────────────────────────────────────────────────────
@@ -2341,6 +2416,44 @@ async function sendBooking() {
 }
 
 // ── GUIDE ─────────────────────────────────────────────────────────────────────
+// ── COLLAPSIBLE SECTIONS ─────────────────────────────────────────────────────
+function toggleSection(rowsId, chevronId, wrapId) {
+  const wrap    = document.getElementById(wrapId);
+  const chevron = document.getElementById(chevronId);
+  if (!wrap) return;
+  const open = wrap.style.display !== 'none';
+  wrap.style.display = open ? 'none' : 'block';
+  chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function updateCountPill(pillId, rowsId) {
+  const pill = document.getElementById(pillId);
+  if (!pill) return;
+  const count = document.querySelectorAll('#' + rowsId + ' .qty-row').length;
+  if (count > 0) {
+    pill.textContent = count;
+    pill.style.display = 'inline-block';
+  } else {
+    pill.style.display = 'none';
+  }
+}
+
+// ── CBM BUFFER ───────────────────────────────────────────────────────────────
+function setBuffer(pct) {
+  cbmBuffer = pct;
+  document.querySelectorAll('.buf-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('buf' + pct).classList.add('active');
+  if (lastCBM) calcCBM();
+}
+
+function toggleConfig() {
+  const panel = document.getElementById('configPanel');
+  const chevron = document.getElementById('configChevron');
+  const open = panel.style.display === 'none';
+  panel.style.display = open ? 'block' : 'none';
+  chevron.style.transform = open ? 'rotate(180deg)' : '';
+}
+
 function toggleGuide() {
   const body = document.getElementById('guideBody');
   const arrow = document.getElementById('guideArrow');
