@@ -350,7 +350,7 @@ textarea {
 /* ─── CARRIER CARDS ─── */
 .carrier-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
@@ -1412,6 +1412,13 @@ textarea {
               <label for="carr-mainfreight">
                 <span class="carrier-name">Mainfreight</span>
                 <span class="carrier-contact">Manual booking</span>
+              </label>
+            </div>
+            <div class="carrier-opt">
+              <input type="radio" name="carrier" id="carr-amorini" value="Amorini Logistics" data-email="" data-s8="true">
+              <label for="carr-amorini">
+                <span class="carrier-name">Amorini</span>
+                <span class="carrier-contact">Internal</span>
               </label>
             </div>
             <div class="carrier-opt carrier-other" style="grid-column: 1 / -1;">
@@ -2659,6 +2666,8 @@ function updateEmailPreview() {
 function getEffectiveCarrierEmail() {
   const carrier = document.querySelector('input[name="carrier"]:checked');
   if (!carrier) return '';
+  const isS8 = carrier.dataset.s8 === 'true';
+
   if (carrier.value === 'Other') {
     return document.getElementById('otherCarrierEmail').value.trim();
   }
@@ -2677,7 +2686,17 @@ function getEffectiveCarrierName() {
 function updateSendToLine() {
   const carrier = document.querySelector('input[name="carrier"]:checked');
   const line = document.getElementById('sendToLine');
+  const sendBtn = document.getElementById('sendBtn');
+  const sendIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
+  const s8Icon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`;
   if (!carrier) { line.className = 'send-to-line'; return; }
+
+  if (carrier.dataset.s8 === 'true') {
+    line.innerHTML = `<span style="color:var(--text-muted)">Amorini Logistics internal job — a ServiceM8 job request will be created via Make.</span>`;
+    line.className = 'send-to-line show';
+    sendBtn.innerHTML = s8Icon + ' Send ServiceM8 Request';
+    return;
+  }
 
   if (carrier.value === 'Other') {
     const email = document.getElementById('otherCarrierEmail').value.trim();
@@ -2746,6 +2765,11 @@ async function sendBooking() {
     if (!otherEmail || !otherEmail.includes('@')) { showStatus('Please enter a valid email address for the Other carrier.', 'error'); return; }
   }
 
+  // S8 jobs don't need a carrier email
+  if (!isS8 && !carrier.value === 'Mainfreight' && !getEffectiveCarrierEmail() && !carrier.dataset.email.startsWith('PLACEHOLDER') === false) {
+    // email will be validated by Make filter
+  }
+
   if (!webhookURL) {
     showStatus('No Make webhook URL configured. Paste your webhook URL at the top of the page.', 'error');
     return;
@@ -2767,6 +2791,7 @@ async function sendBooking() {
     notes:           document.getElementById('notes').value.trim(),
     cbmNotes:        document.getElementById('cbmNotes').value.trim(),
     // FIX 2: removed non-existent benchtopQty reference
+    createS8Job:     isS8 ? true : false,
     sentFrom:        'bookings@amorinilogistics.com.au',
     emailBody:       buildEmailBody(),
     submittedAt:     new Date().toISOString()
@@ -2785,11 +2810,11 @@ async function sendBooking() {
 
     if (res.ok || res.status === 200) {
       const isMF = carrier.value === 'Mainfreight';
-      showStatus(isMF
-        ? `✓ Mainfreight booking logged to Google Sheets.`
+      showStatus(
+        isS8 ? `✓ ServiceM8 job request sent. Make will create the job in ServiceM8.`
+        : isMF ? `✓ Mainfreight booking logged to Google Sheets.`
         : `✓ Booking request sent to ${getEffectiveCarrierName()}. Make will dispatch the email from bookings@amorinilogistics.com.au.`,
         'success');
-      if (!isMF) { /* email sent */ }
     } else {
       throw new Error(`HTTP ${res.status}`);
     }
