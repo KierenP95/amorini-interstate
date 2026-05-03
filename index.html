@@ -1435,7 +1435,7 @@ textarea {
               </div>
             </div>
           </div>
-          <p style="font-size:11px; color:var(--text-dim); margin-top:10px;">Mainfreight requires manual booking — no email will be sent.</p>
+          <p style="font-size:11px; color:var(--text-dim); margin-top:10px;">Mainfreight — no email sent, booking is logged to Google Sheets only.</p>
         </div>
       </div>
 
@@ -2685,19 +2685,22 @@ function updateSendToLine() {
     if (email && name) {
       line.innerHTML = `Sending to: <strong>${email}</strong> via Make`;
       line.className = 'send-to-line show';
+      document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Booking Request`;
     } else {
       line.innerHTML = `<span style="color:var(--text-muted)">Enter carrier name and email above to send.</span>`;
       line.className = 'send-to-line show';
     }
   } else if (carrier.value === 'Mainfreight') {
-    line.innerHTML = `<span style="color:var(--text-dim)">Mainfreight selected — no email will be sent. Book manually.</span>`;
+    line.innerHTML = `<span style="color:var(--text-dim)">Mainfreight — booking will be logged to Google Sheets only. No email will be sent.</span>`;
     line.className = 'send-to-line show';
+    document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Log to Sheets`;
   } else if (carrier.dataset.email && !carrier.dataset.email.startsWith('PLACEHOLDER')) {
     line.innerHTML = `Sending to: <strong>${carrier.dataset.email}</strong> via Make`;
     line.className = 'send-to-line show';
   } else if (carrier.dataset.email && carrier.dataset.email.startsWith('PLACEHOLDER')) {
     line.innerHTML = `<span style="color:var(--gold)">⚠ Carrier email is still a placeholder — update the HTML file with the real address.</span>`;
     line.className = 'send-to-line show';
+    document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Booking Request`;
   } else {
     line.className = 'send-to-line';
   }
@@ -2735,11 +2738,6 @@ async function sendBooking() {
   if (!delivery)  { showStatus('Please select a delivery date.', 'error'); return; }
   if (!carrier)   { showStatus('Please select a delivery team.', 'error'); return; }
   if (!lastCBM)   { showStatus('Please calculate CBM before sending.', 'error'); return; }
-
-  if (carrier.value === 'Mainfreight') {
-    showStatus('Mainfreight requires manual booking — no email sent.', 'error');
-    return;
-  }
 
   if (carrier.value === 'Other') {
     const otherName = document.getElementById('otherCarrierName').value.trim();
@@ -2786,7 +2784,12 @@ async function sendBooking() {
     });
 
     if (res.ok || res.status === 200) {
-      showStatus(`✓ Booking request sent to ${getEffectiveCarrierName()}. Make will dispatch the email from bookings@amorinilogistics.com.au.`, 'success');
+      const isMF = carrier.value === 'Mainfreight';
+      showStatus(isMF
+        ? `✓ Mainfreight booking logged to Google Sheets.`
+        : `✓ Booking request sent to ${getEffectiveCarrierName()}. Make will dispatch the email from bookings@amorinilogistics.com.au.`,
+        'success');
+      if (!isMF) { /* email sent */ }
     } else {
       throw new Error(`HTTP ${res.status}`);
     }
@@ -2934,6 +2937,15 @@ function parseSheetDate(str) {
   return null;
 }
 
+function extractState(address) {
+  if (!address) return '';
+  const states = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT'];
+  for (const s of states) {
+    if (address.includes(s)) return s;
+  }
+  return '';
+}
+
 function getCarrierClass(carrier) {
   const c = carrier.toLowerCase();
   if (c.includes('martin') || c.includes('ability')) return 'carrier-martin';
@@ -3049,7 +3061,8 @@ function renderCalendar() {
       html += `<div class="bc-job">${b.jobName || b.jobRef}</div>`;
       html += `<div class="bc-carrier">${b.carrier.split('—')[0].trim()}</div>`;
       html += `<div class="bc-meta">${b.cbm ? b.cbm + ' m³' : ''}${b.cargoType ? ' · ' + b.cargoType : ''}</div>`;
-      html += `<div><span class="status-pill ${sc}">${b.status || 'Pending'}</span></div>`;
+      const state = extractState(b.address);
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;"><span class="status-pill ${sc}">${b.status || 'Pending'}</span>${state ? `<span style="font-size:9px;font-weight:700;opacity:0.7;">${state}</span>` : ''}</div>`;
       html += '</div>';
     });
 
