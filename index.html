@@ -2729,6 +2729,7 @@ document.addEventListener('change', e => {
   if (e.target.name === 'carrier') {
     const otherFields = document.getElementById('otherCarrierFields');
     otherFields.style.display = e.target.value === 'Other' ? 'block' : 'none';
+    document.getElementById('sendBtn').disabled = false;
     updateEmailPreview();
   }
   if (e.target.name === 'cargo' || e.target.name === 'freight') {
@@ -2742,6 +2743,8 @@ document.addEventListener('input', e => {
 
 // ── SEND ──────────────────────────────────────────────────────────────────────
 async function sendBooking() {
+  const carrier0 = document.querySelector('input[name="carrier"]:checked');
+  console.log('sendBooking fired | lastCBM:', lastCBM, '| carrier:', carrier0 && carrier0.value, '| webhook:', localStorage.getItem('amorini_booking_webhook'));
   const webhookURL = document.getElementById('webhookInput').value.trim()
                      || localStorage.getItem('amorini_booking_webhook') || '';
 
