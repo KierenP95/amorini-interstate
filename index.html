@@ -2666,8 +2666,6 @@ function updateEmailPreview() {
 function getEffectiveCarrierEmail() {
   const carrier = document.querySelector('input[name="carrier"]:checked');
   if (!carrier) return '';
-  const isS8 = carrier && carrier.dataset.s8 === 'true';
-
   if (carrier.value === 'Other') {
     return document.getElementById('otherCarrierEmail').value.trim();
   }
@@ -2760,6 +2758,8 @@ async function sendBooking() {
   if (!delivery)  { showStatus('Please select a delivery date.', 'error'); return; }
   if (!carrier)   { showStatus('Please select a delivery team.', 'error'); return; }
   if (!lastCBM)   { showStatus('Please calculate CBM before sending.', 'error'); return; }
+
+  const isS8 = carrier.dataset.s8 === 'true';
 
   if (carrier.value === 'Other') {
     const otherName = document.getElementById('otherCarrierName').value.trim();
