@@ -2794,7 +2794,7 @@ async function sendBooking() {
     notes:           document.getElementById('notes').value.trim(),
     cbmNotes:        document.getElementById('cbmNotes').value.trim(),
     // FIX 2: removed non-existent benchtopQty reference
-    createS8Job:     isS8 ? true : false,
+    ...(isS8 ? { createS8Job: true } : {}),
     sentFrom:        'bookings@amorinilogistics.com.au',
     emailBody:       buildEmailBody(),
     submittedAt:     new Date().toISOString()
