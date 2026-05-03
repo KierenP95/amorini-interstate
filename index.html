@@ -1118,8 +1118,15 @@ textarea {
         </div>
         <button class="btn btn-ghost" onclick="saveMapsKey()">Save</button>
       </div>
+      <div class="webhook-row" style="border-top: 1px solid var(--border);">
+        <div class="wh-field">
+          <label>Google Sheets API Key</label>
+          <input type="text" id="sheetsApiKey" placeholder="Paste Sheets API key…">
+        </div>
+        <button class="btn btn-ghost" onclick="saveSheetsKey()">Save</button>
+      </div>
       <div style="padding:10px 20px; font-size:11px; color:var(--text-dim);">
-        Both keys are saved in your browser only.
+        All keys are saved in your browser only.
       </div>
     </div>
   </div>
@@ -1636,6 +1643,10 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('webhookInput').value = saved;
     onWebhookInput(saved);
   }
+  // Restore Sheets API key
+  const savedSheets = localStorage.getItem('amorini_sheets_key');
+  if (savedSheets) document.getElementById('sheetsApiKey').value = savedSheets;
+
   // Restore Maps API key and load Places if available
   const savedKey = localStorage.getItem('amorini_maps_key');
   if (savedKey) {
@@ -1694,6 +1705,13 @@ function saveWebhook() {
 // ── GOOGLE MAPS / PLACES ──────────────────────────────────────────────────────
 function onMapsKeyInput(val) {
   // Visual feedback only — don't reload on every keystroke
+}
+
+function saveSheetsKey() {
+  const val = document.getElementById('sheetsApiKey').value.trim();
+  if (!val) { showStatus('Please paste your Google Sheets API key first.', 'error'); return; }
+  localStorage.setItem('amorini_sheets_key', val);
+  showStatus('Sheets API key saved.', 'success');
 }
 
 function saveMapsKey() {
@@ -2843,9 +2861,9 @@ function showStatus(msg, type) {
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────
-const SHEET_ID  = '1kl1-5dSljVN5sjM3MveloaPPmPzMDhDrFObvwnGUgoU';
-const SHEETS_KEY = 'AIzaSyD0c2PIdNy8coNSr6tvNsDkhG9KftkoIh0';
+const SHEET_ID   = '1kl1-5dSljVN5sjM3MveloaPPmPzMDhDrFObvwnGUgoU';
 const SHEET_NAME = 'Sheet1';
+function getSheetsKey() { return localStorage.getItem('amorini_sheets_key') || ''; }
 
 let dashData       = [];
 let dashMonth      = new Date().getMonth();
@@ -2871,9 +2889,14 @@ function switchTab(tab) {
 async function loadDashboard() {
   const container = document.getElementById('calContainer');
   container.innerHTML = '<div class="dash-loading">Loading deliveries…</div>';
+  const sheetsKey = getSheetsKey();
+  if (!sheetsKey) {
+    container.innerHTML = '<div class="dash-empty">⚠ No Sheets API key configured — open Configuration above and paste your Google Sheets API key.</div>';
+    return;
+  }
   try {
     const range = encodeURIComponent(SHEET_NAME + '!A2:K500');
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${SHEETS_KEY}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${sheetsKey}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
