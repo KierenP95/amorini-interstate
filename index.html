@@ -2666,7 +2666,7 @@ function updateEmailPreview() {
 function getEffectiveCarrierEmail() {
   const carrier = document.querySelector('input[name="carrier"]:checked');
   if (!carrier) return '';
-  const isS8 = carrier.dataset.s8 === 'true';
+  const isS8 = carrier && carrier.dataset.s8 === 'true';
 
   if (carrier.value === 'Other') {
     return document.getElementById('otherCarrierEmail').value.trim();
