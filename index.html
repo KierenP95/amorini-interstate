@@ -3225,10 +3225,10 @@ function dashPrevMonth() {
 
 function dashNextMonth() {
   if (dashView === 'week') {
-    const { sunday } = getWeekBounds();
-    sunday.setDate(sunday.getDate() + 1);
-    dashMonth = sunday.getMonth();
-    dashYear = sunday.getFullYear();
+    const { monday } = getWeekBounds();
+    monday.setDate(monday.getDate() + 7);
+    dashMonth = monday.getMonth();
+    dashYear = monday.getFullYear();
     renderWeek();
   } else {
     dashMonth++;
