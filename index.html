@@ -1061,6 +1061,148 @@ textarea {
 .modal-label { color: var(--text-muted); font-weight: 500; }
 .modal-val { color: var(--text); text-align: right; max-width: 60%; }
 
+/* ─── VIEW TOGGLE ─── */
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--surface2);
+}
+.view-toggle-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.view-toggle-btn.active { background: var(--accent); color: #fff; }
+
+/* ─── WEEK VIEW ─── */
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.week-cell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  min-height: 200px;
+  padding: 8px;
+}
+.week-cell.today { border-color: var(--accent); border-width: 1.5px; }
+.week-day-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+.week-date-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+.week-cell.today .week-date-num { color: var(--accent); }
+
+/* ─── DASHBOARD LAYOUT WITH SIDE PANEL ─── */
+.dash-main-layout {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .dash-main-layout { grid-template-columns: 1fr; }
+}
+
+/* ─── ANALYSIS PANEL ─── */
+.analysis-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  position: sticky;
+  top: 80px;
+}
+.analysis-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface2);
+}
+.analysis-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.analysis-section:last-child { border-bottom: none; }
+.analysis-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.analysis-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.analysis-stat-label { color: var(--text-muted); }
+.analysis-stat-val {
+  font-family: 'DM Mono', monospace;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+}
+.analysis-total {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'DM Mono', monospace;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.analysis-total-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.carrier-bar {
+  height: 4px;
+  border-radius: 2px;
+  margin-top: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+.carrier-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ─── SCROLLBAR ─── */
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1591,10 +1733,16 @@ Body:     {{emailBody}}</code>
           <button class="filter-pill" data-carrier="amorini" onclick="setCarrierFilter('amorini')">Amorini</button>
           <button class="filter-pill" data-carrier="other" onclick="setCarrierFilter('other')">Other</button>
         </div>
-        <button class="refresh-btn" onclick="loadDashboard()">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          Refresh
-        </button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div class="view-toggle">
+            <button class="view-toggle-btn active" id="btnMonth" onclick="setDashView('month')">Month</button>
+            <button class="view-toggle-btn" id="btnWeek" onclick="setDashView('week')">Week</button>
+          </div>
+          <button class="refresh-btn" onclick="loadDashboard()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1613,8 +1761,47 @@ Body:     {{emailBody}}</code>
       </div>
     </div>
 
-    <!-- Calendar -->
-    <div id="calContainer"></div>
+    <!-- Main layout: calendar + analysis panel -->
+    <div class="dash-main-layout">
+      <div>
+        <!-- Calendar -->
+        <div id="calContainer"></div>
+      </div>
+
+      <!-- Analysis Panel -->
+      <div class="analysis-panel">
+        <div class="analysis-head">Analysis</div>
+
+        <!-- Total Volume -->
+        <div class="analysis-section">
+          <div class="analysis-section-title">Total Volume</div>
+          <div class="analysis-total" id="analysisTotalCBM">—</div>
+          <div class="analysis-total-label">m³ this period</div>
+          <div style="margin-top:10px;">
+            <div class="analysis-stat">
+              <span class="analysis-stat-label">Bookings</span>
+              <span class="analysis-stat-val" id="analysisTotalJobs">—</span>
+            </div>
+            <div class="analysis-stat">
+              <span class="analysis-stat-label">Avg CBM/job</span>
+              <span class="analysis-stat-val" id="analysisAvgCBM">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Volume by Carrier -->
+        <div class="analysis-section">
+          <div class="analysis-section-title">By Carrier</div>
+          <div id="analysisCarriers"></div>
+        </div>
+
+        <!-- Volume by State -->
+        <div class="analysis-section">
+          <div class="analysis-section-title">By State</div>
+          <div id="analysisStates"></div>
+        </div>
+      </div>
+    </div>
 
   </div>
 </div>
@@ -3023,15 +3210,211 @@ function setCarrierFilter(carrier) {
 }
 
 function dashPrevMonth() {
-  dashMonth--;
-  if (dashMonth < 0) { dashMonth = 11; dashYear--; }
-  renderCalendar();
+  if (dashView === 'week') {
+    const { monday } = getWeekBounds();
+    monday.setDate(monday.getDate() - 7);
+    dashMonth = monday.getMonth();
+    dashYear = monday.getFullYear();
+    renderWeek();
+  } else {
+    dashMonth--;
+    if (dashMonth < 0) { dashMonth = 11; dashYear--; }
+    renderCalendar();
+  }
 }
 
 function dashNextMonth() {
-  dashMonth++;
-  if (dashMonth > 11) { dashMonth = 0; dashYear++; }
-  renderCalendar();
+  if (dashView === 'week') {
+    const { sunday } = getWeekBounds();
+    sunday.setDate(sunday.getDate() + 1);
+    dashMonth = sunday.getMonth();
+    dashYear = sunday.getFullYear();
+    renderWeek();
+  } else {
+    dashMonth++;
+    if (dashMonth > 11) { dashMonth = 0; dashYear++; }
+    renderCalendar();
+  }
+}
+
+let dashView = 'month'; // 'month' or 'week'
+
+function setDashView(view) {
+  dashView = view;
+  document.getElementById('btnMonth').classList.toggle('active', view === 'month');
+  document.getElementById('btnWeek').classList.toggle('active', view === 'week');
+  // Update month nav label for week view
+  if (view === 'week') renderWeek();
+  else renderCalendar();
+}
+
+function getWeekBounds() {
+  // Monday of current dashMonth/dashYear context — use today's week if current month
+  const today = new Date();
+  const ref = new Date(dashYear, dashMonth, 1);
+  // Find Monday of the week containing the 'anchor' date
+  // Anchor: if viewing current month, use today; else use 1st of month
+  const anchor = (dashMonth === today.getMonth() && dashYear === today.getFullYear())
+    ? today : ref;
+  const dow = anchor.getDay();
+  const monday = new Date(anchor);
+  monday.setDate(anchor.getDate() - (dow === 0 ? 6 : dow - 1));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { monday, sunday };
+}
+
+function renderWeek() {
+  const { monday, sunday } = getWeekBounds();
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const today = new Date();
+
+  // Update month label to show week range
+  const startStr = monday.getDate() + ' ' + months[monday.getMonth()].slice(0,3);
+  const endStr = sunday.getDate() + ' ' + months[sunday.getMonth()].slice(0,3) + ' ' + sunday.getFullYear();
+  document.getElementById('dashMonthLabel').textContent = startStr + ' – ' + endStr;
+
+  // Filter bookings for this week
+  const filtered = dashData.filter(b => {
+    if (activeCarrier !== 'all' && getCarrierKey(b.carrier) !== activeCarrier) return false;
+    const pd = parseSheetDate(b.pickupDate);
+    if (!pd) return false;
+    return pd >= monday && pd <= sunday;
+  });
+
+  // Build date->bookings map
+  const byDate = {};
+  filtered.forEach(b => {
+    const pd = parseSheetDate(b.pickupDate);
+    if (pd) {
+      const key = pd.toDateString();
+      if (!byDate[key]) byDate[key] = [];
+      byDate[key].push(b);
+    }
+  });
+
+  let html = '<div class="week-grid">';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const isToday = d.toDateString() === today.toDateString();
+    const bookings = byDate[d.toDateString()] || [];
+
+    html += `<div class="week-cell${isToday ? ' today' : ''}">`;
+    html += `<div class="week-day-label">${days[i]}</div>`;
+    html += `<div class="week-date-num">${d.getDate()}</div>`;
+
+    bookings.forEach(b => {
+      const cc = getCarrierClass(b.carrier);
+      const sc = getStatusClass(b.status);
+      const state = extractState(b.address);
+      const cancelled = b.status.toLowerCase() === 'cancelled';
+      html += `<div class="booking-card ${cc}" style="${cancelled ? 'opacity:0.45;' : ''}" onclick="showModal(${JSON.stringify(b).replace(/"/g,'&quot;')})">`;
+      html += `<div class="bc-job">${b.jobName || b.jobRef}</div>`;
+      html += `<div class="bc-carrier">${b.carrier.split('—')[0].trim()}</div>`;
+      html += `<div class="bc-meta">${b.cbm ? b.cbm + ' m³' : ''}${b.cargoType ? ' · ' + b.cargoType : ''}</div>`;
+      html += `<div class="bc-meta" style="margin-top:1px;">Delivery: ${b.deliveryDate || '—'}</div>`;
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;"><span class="status-pill ${sc}">${b.status || 'Pending'}</span>${state ? `<span style="font-size:9px;font-weight:700;opacity:0.7;">${state}</span>` : ''}</div>`;
+      html += '</div>';
+    });
+
+    if (bookings.length === 0) {
+      html += `<div style="font-size:10px;color:var(--text-dim);margin-top:4px;">No pickups</div>`;
+    }
+
+    html += '</div>';
+  }
+  html += '</div>';
+
+  document.getElementById('calContainer').innerHTML = html;
+  renderAnalysis(filtered);
+}
+
+function renderAnalysis(filtered) {
+  if (!filtered) {
+    // Use whatever is currently visible based on view
+    filtered = dashData.filter(b => {
+      if (activeCarrier !== 'all' && getCarrierKey(b.carrier) !== activeCarrier) return false;
+      if (dashView === 'week') {
+        const { monday, sunday } = getWeekBounds();
+        const pd = parseSheetDate(b.pickupDate);
+        return pd && pd >= monday && pd <= sunday;
+      } else {
+        const pd = parseSheetDate(b.pickupDate);
+        const dd = parseSheetDate(b.deliveryDate);
+        const inMonth = d => d && d.getMonth() === dashMonth && d.getFullYear() === dashYear;
+        return inMonth(pd) || inMonth(dd);
+      }
+    });
+  }
+
+  // Total CBM
+  let totalCBM = 0;
+  filtered.forEach(b => { totalCBM += parseFloat(b.cbm) || 0; });
+  const avgCBM = filtered.length > 0 ? (totalCBM / filtered.length).toFixed(2) : '—';
+
+  document.getElementById('analysisTotalCBM').textContent = totalCBM.toFixed(2);
+  document.getElementById('analysisTotalJobs').textContent = filtered.length;
+  document.getElementById('analysisAvgCBM').textContent = filtered.length > 0 ? avgCBM + ' m³' : '—';
+
+  // By Carrier
+  const carrierTotals = {};
+  filtered.forEach(b => {
+    const key = b.carrier.split('—')[0].trim() || 'Unknown';
+    if (!carrierTotals[key]) carrierTotals[key] = { cbm: 0, count: 0 };
+    carrierTotals[key].cbm += parseFloat(b.cbm) || 0;
+    carrierTotals[key].count++;
+  });
+
+  const carrierColours = {
+    'Martin': '#1a56c4', 'Ability Removals': '#1a56c4',
+    'Jackmans': '#d97706', 'Sam Jackman': '#d97706',
+    'Harringtons': '#16a34a', 'Andrew': '#16a34a',
+    'Mainfreight': '#9333ea',
+    'Amorini Logistics': '#db2777',
+  };
+
+  let carrierHTML = '';
+  const sortedCarriers = Object.entries(carrierTotals).sort((a,b) => b[1].cbm - a[1].cbm);
+  sortedCarriers.forEach(([name, data]) => {
+    const pct = totalCBM > 0 ? (data.cbm / totalCBM * 100).toFixed(0) : 0;
+    const colour = carrierColours[name] || '#94a3b8';
+    carrierHTML += `
+      <div style="margin-bottom:8px;">
+        <div class="analysis-stat" style="padding:0;">
+          <span class="analysis-stat-label" style="font-size:11px;">${name}</span>
+          <span class="analysis-stat-val">${data.cbm.toFixed(2)} m³</span>
+        </div>
+        <div class="carrier-bar"><div class="carrier-bar-fill" style="width:${pct}%;background:${colour};"></div></div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:1px;">${data.count} job${data.count !== 1 ? 's' : ''} · ${pct}%</div>
+      </div>`;
+  });
+  document.getElementById('analysisCarriers').innerHTML = carrierHTML || '<div style="font-size:11px;color:var(--text-dim);">No data</div>';
+
+  // By State
+  const stateTotals = {};
+  filtered.forEach(b => {
+    const state = extractState(b.address) || 'Unknown';
+    if (!stateTotals[state]) stateTotals[state] = { cbm: 0, count: 0 };
+    stateTotals[state].cbm += parseFloat(b.cbm) || 0;
+    stateTotals[state].count++;
+  });
+
+  let stateHTML = '';
+  Object.entries(stateTotals).sort((a,b) => b[1].cbm - a[1].cbm).forEach(([state, data]) => {
+    const pct = totalCBM > 0 ? (data.cbm / totalCBM * 100).toFixed(0) : 0;
+    stateHTML += `
+      <div style="margin-bottom:8px;">
+        <div class="analysis-stat" style="padding:0;">
+          <span class="analysis-stat-label" style="font-size:11px;">${state}</span>
+          <span class="analysis-stat-val">${data.cbm.toFixed(2)} m³</span>
+        </div>
+        <div class="carrier-bar"><div class="carrier-bar-fill" style="width:${pct}%;background:var(--accent);"></div></div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:1px;">${data.count} job${data.count !== 1 ? 's' : ''} · ${pct}%</div>
+      </div>`;
+  });
+  document.getElementById('analysisStates').innerHTML = stateHTML || '<div style="font-size:11px;color:var(--text-dim);">No data</div>';
 }
 
 function renderCalendar() {
