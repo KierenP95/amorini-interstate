@@ -3211,10 +3211,9 @@ function setCarrierFilter(carrier) {
 
 function dashPrevMonth() {
   if (dashView === 'week') {
-    const { monday } = getWeekBounds();
-    monday.setDate(monday.getDate() - 7);
-    dashMonth = monday.getMonth();
-    dashYear = monday.getFullYear();
+    if (!currentWeekMonday) getWeekBounds();
+    currentWeekMonday = new Date(currentWeekMonday);
+    currentWeekMonday.setDate(currentWeekMonday.getDate() - 7);
     renderWeek();
   } else {
     dashMonth--;
@@ -3225,10 +3224,9 @@ function dashPrevMonth() {
 
 function dashNextMonth() {
   if (dashView === 'week') {
-    const { monday } = getWeekBounds();
-    monday.setDate(monday.getDate() + 7);
-    dashMonth = monday.getMonth();
-    dashYear = monday.getFullYear();
+    if (!currentWeekMonday) getWeekBounds();
+    currentWeekMonday = new Date(currentWeekMonday);
+    currentWeekMonday.setDate(currentWeekMonday.getDate() + 7);
     renderWeek();
   } else {
     dashMonth++;
@@ -3243,23 +3241,26 @@ function setDashView(view) {
   dashView = view;
   document.getElementById('btnMonth').classList.toggle('active', view === 'month');
   document.getElementById('btnWeek').classList.toggle('active', view === 'week');
-  // Update month nav label for week view
-  if (view === 'week') renderWeek();
-  else renderCalendar();
+  if (view === 'week') {
+    currentWeekMonday = null; // reset to current week
+    renderWeek();
+  } else {
+    renderCalendar();
+  }
 }
 
+let currentWeekMonday = null;
+
 function getWeekBounds() {
-  // Monday of current dashMonth/dashYear context — use today's week if current month
-  const today = new Date();
-  const ref = new Date(dashYear, dashMonth, 1);
-  // Find Monday of the week containing the 'anchor' date
-  // Anchor: if viewing current month, use today; else use 1st of month
-  const anchor = (dashMonth === today.getMonth() && dashYear === today.getFullYear())
-    ? today : ref;
-  const dow = anchor.getDay();
-  const monday = new Date(anchor);
-  monday.setDate(anchor.getDate() - (dow === 0 ? 6 : dow - 1));
-  const sunday = new Date(monday);
+  if (!currentWeekMonday) {
+    const today = new Date();
+    const dow = today.getDay();
+    currentWeekMonday = new Date(today);
+    currentWeekMonday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    currentWeekMonday.setHours(0,0,0,0);
+  }
+  const monday = new Date(currentWeekMonday);
+  const sunday = new Date(currentWeekMonday);
   sunday.setDate(monday.getDate() + 6);
   return { monday, sunday };
 }
