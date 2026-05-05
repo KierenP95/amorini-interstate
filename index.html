@@ -2187,8 +2187,8 @@ async function extractFromPDF(input) {
 
   for (const file of files) {
     if (pdfIndex > 0) {
-      setStatus(`⏳ Waiting before processing ${file.name}…`, 'gold');
-      await new Promise(r => setTimeout(r, 10000));
+      setStatus(`⏳ Processing ${file.name} (${pdfIndex + 1} of ${files.length})…`, 'gold');
+      await new Promise(r => setTimeout(r, 2000));
     }
     pdfIndex++;
 
@@ -2207,17 +2207,29 @@ async function extractFromPDF(input) {
 
       fileItem.innerHTML = `<span style="color:var(--gold)">⏳</span><span>${file.name}</span><span style="color:var(--text-dim)">uploading to server…</span>`;
 
-      const response = await fetch('https://amorini-pdf-server-production.up.railway.app/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfBase64: base64 })
-      });
-
-      const rawText = await response.text();
-      if (!rawText || rawText.trim() === '') throw new Error('Empty response');
-      let data;
-      try { data = JSON.parse(rawText); } catch(e) { throw new Error('Invalid response'); }
-      if (data.error) throw new Error(data.error);
+      let response, rawText, data;
+      let attempts = 0;
+      while (attempts < 2) {
+        attempts++;
+        if (attempts > 1) {
+          fileItem.innerHTML = `<span style="color:var(--gold)">&#9203;</span><span>${file.name}</span><span style="color:var(--text-dim)">retrying...</span>`;
+          await new Promise(r => setTimeout(r, 3000));
+        }
+        try {
+          response = await fetch('https://amorini-pdf-server-production.up.railway.app/extract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdfBase64: base64 })
+          });
+          rawText = await response.text();
+          if (!rawText || rawText.trim() === '') throw new Error('Empty response from server');
+          try { data = JSON.parse(rawText); } catch(e) { throw new Error('Invalid JSON response'); }
+          if (data.error) throw new Error(data.error);
+          break;
+        } catch(fetchErr) {
+          if (attempts >= 2) throw fetchErr;
+        }
+      }
 
       const text = data.codes;
       const fileCodes = {};
