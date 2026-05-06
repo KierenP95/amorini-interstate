@@ -1597,6 +1597,14 @@ textarea {
         <div class="section-label" style="margin-bottom:16px;">Review &amp; Send Booking Request</div>
         <div class="send-to-line" id="sendToLine"></div>
         <div class="email-preview" id="emailPreview"></div>
+        <label id="skipEmailToggleWrap" style="display:none;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;user-select:none;">
+          <div style="position:relative;width:36px;height:20px;flex-shrink:0;">
+            <input type="checkbox" id="skipEmailToggle" onchange="updateSendBtn()" style="opacity:0;width:0;height:0;position:absolute;">
+            <span id="skipEmailTrack" style="position:absolute;inset:0;background:#e0e0e0;border-radius:20px;transition:background 0.2s;"></span>
+            <span id="skipEmailThumb" style="position:absolute;top:3px;left:3px;width:14px;height:14px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:transform 0.2s;"></span>
+          </div>
+          <span style="font-size:13px;color:#555;font-family:'Inter',sans-serif;">Log to Sheets only — skip carrier email</span>
+        </label>
         <div style="display:flex; gap:12px; flex-wrap:wrap;">
           <button class="btn btn-ghost" onclick="previewEmail()" style="flex:1;">Preview Email</button>
           <button class="btn btn-primary btn-lg" id="sendBtn" onclick="sendBooking()" style="flex:2;">
@@ -2895,12 +2903,16 @@ function updateSendToLine() {
     line.innerHTML = `<span style="color:var(--text-muted)">Amorini Logistics internal job — a ServiceM8 job request will be created via Make.</span>`;
     line.className = 'send-to-line show';
     sendBtn.innerHTML = s8Icon + ' Send ServiceM8 Request';
+    document.getElementById('skipEmailToggleWrap').style.display = 'none';
+    document.getElementById('skipEmailToggle').checked = false;
     return;
   }
 
   if (carrier.value === 'Other') {
     const email = document.getElementById('otherCarrierEmail').value.trim();
     const name = document.getElementById('otherCarrierName').value.trim();
+    document.getElementById('skipEmailToggleWrap').style.display = 'none';
+    document.getElementById('skipEmailToggle').checked = false;
     if (email && name) {
       line.innerHTML = `Sending to: <strong>${email}</strong> via Make`;
       line.className = 'send-to-line show';
@@ -2912,13 +2924,18 @@ function updateSendToLine() {
   } else if (carrier.value === 'Mainfreight') {
     line.innerHTML = `<span style="color:var(--text-dim)">Mainfreight — booking will be logged to Google Sheets only. No email will be sent.</span>`;
     line.className = 'send-to-line show';
+    document.getElementById('skipEmailToggleWrap').style.display = 'none';
+    document.getElementById('skipEmailToggle').checked = false;
     document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Log to Sheets`;
   } else if (carrier.dataset.email && !carrier.dataset.email.startsWith('PLACEHOLDER')) {
     line.innerHTML = `Sending to: <strong>${carrier.dataset.email}</strong> via Make`;
     line.className = 'send-to-line show';
+    document.getElementById('skipEmailToggleWrap').style.display = 'flex';
+    document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Booking Request`;
   } else if (carrier.dataset.email && carrier.dataset.email.startsWith('PLACEHOLDER')) {
     line.innerHTML = `<span style="color:var(--gold)">⚠ Carrier email is still a placeholder — update the HTML file with the real address.</span>`;
     line.className = 'send-to-line show';
+    document.getElementById('skipEmailToggleWrap').style.display = 'none';
     document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Booking Request`;
   } else {
     line.className = 'send-to-line';
@@ -2942,6 +2959,20 @@ document.addEventListener('input', e => {
 });
 
 // ── SEND ──────────────────────────────────────────────────────────────────────
+function updateSendBtn() {
+  const chk = document.getElementById('skipEmailToggle');
+  if (!chk) return;
+  document.getElementById('skipEmailTrack').style.background = chk.checked ? '#27ae60' : '#e0e0e0';
+  document.getElementById('skipEmailThumb').style.transform  = chk.checked ? 'translateX(16px)' : 'translateX(0)';
+  const carrier = document.querySelector('input[name="carrier"]:checked');
+  const isMainfreight = carrier && carrier.value === 'Mainfreight';
+  if (!isMainfreight && chk.checked) {
+    document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Log to Sheets`;
+  } else if (!isMainfreight) {
+    document.getElementById('sendBtn').innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Booking Request`;
+  }
+}
+
 async function sendBooking() {
   const carrier0 = document.querySelector('input[name="carrier"]:checked');
   console.log('sendBooking fired | lastCBM:', lastCBM, '| carrier:', carrier0 && carrier0.value, '| webhook:', localStorage.getItem('amorini_booking_webhook'));
@@ -2992,7 +3023,7 @@ async function sendBooking() {
     cargoType:       document.querySelector('input[name="cargo"]:checked').value,
     freightType:     document.querySelector('input[name="freight"]:checked').value,
     carrier:         getEffectiveCarrierName(),
-    carrierEmail:    getEffectiveCarrierEmail(),
+    carrierEmail:    (document.getElementById("skipEmailToggle")?.checked ? "" : getEffectiveCarrierEmail()),
     notes:           document.getElementById('notes').value.trim(),
     cbmNotes:        document.getElementById('cbmNotes').value.trim(),
     // FIX 2: removed non-existent benchtopQty reference
